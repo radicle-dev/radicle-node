@@ -7,6 +7,7 @@ members = [
   "radicle-crdt",
   "radicle-crypto",
   "radicle-dag",
+  "radicle-fetch",
   "radicle-httpd",
   "radicle-node",
   "radicle-remote-helper",
