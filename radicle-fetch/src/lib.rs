@@ -12,6 +12,8 @@ use refdb::{Applied, Refdb};
 
 mod odb;
 
+mod refs;
+
 mod remote;
 mod sigrefs;
 mod stage;
@@ -26,6 +28,13 @@ mod validation;
 #[macro_use]
 extern crate log;
 extern crate radicle_git_ext as git_ext;
+
+pub struct Context<I> {
+    refdb: Refdb,
+    odb: Odb,
+    connenction: Arc<transport::Connection>,
+    identities: I,
+}
 
 // TODO: transport::Stateless in link-git will be useful for looking
 // at how to implement the transport layer, which will be driven by

@@ -30,7 +30,6 @@ pub(crate) fn exchange<C>(
 ) -> Result<FetchResult, Error>
 where
     C: Identities + Local + Net + Refdb + Odb + SignedRefs + Tracking,
-    <C as Identities>::Oid: Debug + PartialEq + Send + Sync + 'static,
     for<'a> &'a C: RefScan,
 {
     use either::Either::*;

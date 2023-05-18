@@ -1,9 +1,14 @@
 use std::collections::BTreeMap;
+use std::sync::Arc;
 
 use gix_hash::ObjectId;
 use radicle_crypto::PublicKey;
 
-use lib::refdb;
+use crate::git::odb::Odb;
+use crate::git::refdb::Refdb;
+use crate::refdb;
+use crate::transport::{self, fetch, ls_refs};
+use crate::Context;
 
 type IdentityTips = BTreeMap<PublicKey, ObjectId>;
 type SigrefTips = BTreeMap<PublicKey, ObjectId>;
@@ -11,29 +16,35 @@ type SigrefTips = BTreeMap<PublicKey, ObjectId>;
 #[derive(Default)]
 pub(crate) struct FetchState {
     refs: refdb::InMemory,
-    idts: IdentityTips,
+    ids: IdentityTips,
     sigs: SigrefTips,
     // tips: Vec<Update<'static>>,
 }
 
 impl FetchState {
-    pub fn step<C, S>(&mut self, cx: &mut C, step: &S) -> Result<(), error::Error>
+    pub fn step<I, S>(&mut self, cx: &mut Context<I>, step: &S) -> Result<(), error::Error>
     where
-        C: Identities + Net + Refdb + Odb,
-        for<'a> &'a C: RefScan,
+        I: Identities,
+        // for<'a> &'a C: RefScan,
         S: Layout + Negotiation + UpdateTips + Send + Sync + 'static,
     {
-        Refdb::reload(cx)?;
+        cx.refdb.reload()?;
         let refs = match step.ls_refs() {
             None => Vec::default(),
-            Some(ls) => block_on(Net::run_ls_refs(cx, ls).in_current_span())?
-                .into_iter()
-                .filter_map(|r| step.ref_filter(r))
-                .collect::<Vec<_>>(),
+            Some(ls) => {
+                let config = transport::ls_refs::Config { prefixes: ls };
+                transport::ls_refs(config, transport)?
+                    .into_iter()
+                    .filter_map(|r| step.ref_filter(r))
+                    .collect::<Vec<_>>()
+            }
         };
         Layout::pre_validate(step, &refs)?;
         match step.wants_haves(cx, &refs)? {
-            Some((want, have)) => block_on(Net::run_fetch(cx, step.fetch_limit(), want, have))?,
+            Some((wants, haves)) => {
+                let config = fetch::Config { wants, haves };
+                transport::fetch(config, cx.connection.clone())?;
+            }
             None => info!("nothing to fetch"),
         };
 
@@ -67,5 +78,9 @@ impl FetchState {
         self.update_all(up.tips.into_iter().map(|u| u.into_owned()));
 
         Ok(())
+    }
+
+    pub fn id_tips(&self) -> &BTreeMap<PublicKey, ObjectId> {
+        &self.ids
     }
 }
