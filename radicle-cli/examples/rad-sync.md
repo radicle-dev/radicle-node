@@ -30,8 +30,8 @@ We can also use the `--fetch` option to only fetch objects:
 
 ```
 $ rad sync --fetch
-✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6Mkux1…nVhib7Z..
 ✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6Mkt67…v4N1tRk..
+✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6Mkux1…nVhib7Z..
 ✓ Fetched repository from 2 seed(s)
 ```
 
@@ -39,8 +39,8 @@ Specifying both `--fetch` and `--announce` is equivalent to specifying none:
 
 ``` (fail)
 $ rad sync --fetch --announce
-✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6Mkux1…nVhib7Z..
 ✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6Mkt67…v4N1tRk..
+✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6Mkux1…nVhib7Z..
 ✓ Fetched repository from 2 seed(s)
 ✗ Syncing with 2 node(s)..
 ! Seed z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk timed out..
@@ -60,6 +60,6 @@ And the `--replicas` flag to sync with a number of nodes:
 
 ```
 $ rad sync --fetch --replicas 1
-✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6Mkux1…nVhib7Z..
+✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6Mkt67…v4N1tRk..
 ✓ Fetched repository from 1 seed(s)
 ```

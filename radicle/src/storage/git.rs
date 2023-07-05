@@ -7,6 +7,7 @@ use std::{fs, io};
 
 use crypto::{Signer, Unverified, Verified};
 use once_cell::sync::Lazy;
+use radicle_fetch as fetch;
 
 use crate::git;
 use crate::identity;
@@ -553,7 +554,9 @@ impl ReadRepository for Repository {
             heads.push(oid.into());
         }
         // Keep track of the longest identity branch.
-        let mut longest = heads.pop().ok_or(IdentityError::MissingBranch)?;
+        let mut longest = heads
+            .pop()
+            .ok_or_else(|| IdentityError::MissingDelegateIds)?;
 
         for head in &heads {
             let base = self.raw().merge_base(*head, longest)?;
@@ -643,6 +646,95 @@ impl SignRepository for Repository {
         signed.save(self)?;
 
         Ok(signed)
+    }
+}
+
+impl fetch::Identities for Repository {
+    type VerifiedIdentity = Identity<Id>;
+    type VerifiedError = IdentityError;
+
+    fn verified(
+        &self,
+        head: fetch::gix::ObjectId,
+    ) -> Result<Self::VerifiedIdentity, Self::VerifiedError> {
+        use fetch::gix::oid;
+
+        Identity::load_at(oid::to_oid(head), self)?.verified(self.id)
+    }
+
+    fn newer(
+        &self,
+        left: Self::VerifiedIdentity,
+        right: Self::VerifiedIdentity,
+    ) -> Result<Self::VerifiedIdentity, fetch::identity::error::History<Self::VerifiedIdentity>>
+    {
+        use fetch::identity::error::History::Other;
+        if self
+            .backend
+            .graph_descendant_of(left.head.into(), right.current.into())
+            .map_err(|e| Other(e.into()))?
+        {
+            Ok(left)
+        } else if self
+            .backend
+            .graph_descendant_of(right.head.into(), left.current.into())
+            .map_err(|e| Other(e.into()))?
+        {
+            Ok(right)
+        } else {
+            Err(fetch::identity::error::History::Fork { left, right })
+        }
+    }
+}
+
+impl fetch::sigrefs::Store for Repository {
+    type LoadError = refs::Error;
+
+    fn load(
+        &self,
+        remote: &crypto::PublicKey,
+    ) -> Result<Option<fetch::sigrefs::Sigrefs>, Self::LoadError> {
+        use fetch::gix::oid;
+
+        let at = match self.reference_oid(remote, &refs::SIGREFS_BRANCH) {
+            Ok(at) => at,
+            Err(ext::Error::NotFound(_)) => {
+                return Ok(None);
+            }
+            Err(ext::Error::Git(e)) if e.code() == raw::ErrorCode::NotFound => {
+                return Ok(None);
+            }
+            Err(e) => {
+                return Err(e.into());
+            }
+        };
+        let refs = SignedRefs::load_at(at, *remote, self)?
+            .refs
+            .into_iter()
+            .map(|(rname, tip)| (rname, oid::to_object_id(tip)))
+            .collect();
+
+        Ok(Some(fetch::sigrefs::Sigrefs {
+            at: oid::to_object_id(at),
+            refs,
+        }))
+    }
+
+    fn load_at(
+        &self,
+        tip: impl Into<fetch::gix::ObjectId>,
+        remote: &crypto::PublicKey,
+    ) -> Result<Option<fetch::sigrefs::Sigrefs>, Self::LoadError> {
+        use fetch::gix::oid;
+
+        let tip = tip.into();
+        let refs = SignedRefs::load_at(oid::to_oid(tip), *remote, self)?
+            .refs
+            .into_iter()
+            .map(|(rname, tip)| (rname, oid::to_object_id(tip)))
+            .collect();
+
+        Ok(Some(fetch::sigrefs::Sigrefs { at: tip, refs }))
     }
 }
 

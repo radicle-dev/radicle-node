@@ -7,7 +7,7 @@ Let's say the new car you are designing with your peers has a problem with its f
 $ rad issue open --title "flux capacitor underpowered" --description "Flux capacitor power requirements exceed current supply" --no-announce
 ╭─────────────────────────────────────────────────────────╮
 │ Title   flux capacitor underpowered                     │
-│ Issue   2f6eb49efac492327f71437b6bfc01b49afa0981        │
+│ Issue   a7a65ad60bab7dfb3e97f4a301ab1a03c03fbed1        │
 │ Status  open                                            │
 │                                                         │
 │ Flux capacitor power requirements exceed current supply │
@@ -21,7 +21,7 @@ $ rad issue list
 ╭─────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
 │ ●   ID        Title                         Author                        Labels   Assignees   Opened       │
 ├─────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-│ ●   2f6eb49   flux capacitor underpowered   z6Mkt67…v4N1tRk   bob (you)                        [    ..    ] │
+│ ●   a7a65ad   flux capacitor underpowered   z6Mkt67…v4N1tRk   bob (you)                        [    ..    ] │
 ╰─────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
 ```
 
@@ -33,7 +33,7 @@ others to work on.  This is to ensure work is not duplicated.
 Let's assign this issue to ourself.
 
 ```
-$ rad assign 2f6eb49efac492327f71437b6bfc01b49afa0981 --to did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk
+$ rad assign a7a65ad60bab7dfb3e97f4a301ab1a03c03fbed1 --to did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk
 ```
 
 It will now show in the list of issues assigned to us.
@@ -43,17 +43,17 @@ $ rad issue list --assigned
 ╭─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
 │ ●   ID        Title                         Author                        Labels   Assignees               Opened       │
 ├─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-│ ●   2f6eb49   flux capacitor underpowered   z6Mkt67…v4N1tRk   bob (you)            bob (z6Mkt67…v4N1tRk)   [    ..    ] │
+│ ●   a7a65ad   flux capacitor underpowered   z6Mkt67…v4N1tRk   bob (you)            bob (z6Mkt67…v4N1tRk)   [    ..    ] │
 ╰─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
 ```
 
 In addition, you can see that when you run `rad issue show` you are listed under the `Assignees`.
 
 ```
-$ rad issue show 2f6eb49
+$ rad issue show a7a65ad
 ╭─────────────────────────────────────────────────────────╮
 │ Title      flux capacitor underpowered                  │
-│ Issue      2f6eb49efac492327f71437b6bfc01b49afa0981     │
+│ Issue      a7a65ad60bab7dfb3e97f4a301ab1a03c03fbed1     │
 │ Assignees  z6Mkt67…v4N1tRk                              │
 │ Status     open                                         │
 │                                                         │
@@ -69,6 +69,6 @@ But wait! We've found an important detail about the car's power requirements.
 It will help whoever works on a fix.
 
 ```
-$ rad comment 2f6eb49efac492327f71437b6bfc01b49afa0981 --message 'The flux capacitor needs 1.21 Gigawatts'
-24ab347afda760e77d565f9cb013c6db560f44fd
+$ rad comment a7a65ad60bab7dfb3e97f4a301ab1a03c03fbed1 --message 'The flux capacitor needs 1.21 Gigawatts'
+d0f5ae54aac554b34a2197e8d914b8f48134bb07
 ```

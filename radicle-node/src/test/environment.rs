@@ -319,6 +319,18 @@ impl<G: Signer + cyphernet::Ecdh> NodeHandle<G> {
             .unwrap()
             .id()
     }
+
+    /// Helper to print out references for debugging purposes.
+    pub fn inspect_refs(&self, rid: Id) {
+        let repo = self.storage.repository(rid).unwrap();
+        for r in repo.references().unwrap() {
+            let r = r.unwrap();
+            match r.namespace {
+                Some(ns) => println!("refs/namespaces/{ns}/{}->{}", r.name, r.oid),
+                None => println!("{}->{}", r.name, r.oid),
+            }
+        }
+    }
 }
 
 impl Node<MockSigner> {
@@ -336,6 +348,7 @@ impl Node<MockSigner> {
         let tracking = tracking::Config::<tracking::Write>::memory().unwrap();
         let routing = routing::Table::memory().unwrap();
 
+        log::debug!(target: "test", "Node::init {}: {}", config.alias, signer.public_key());
         Self {
             id: *signer.public_key(),
             home,

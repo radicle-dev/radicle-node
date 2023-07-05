@@ -93,6 +93,10 @@ impl<G, C, S> Handle<G, C, S> {
         &self.context
     }
 
+    pub fn context_mut(&mut self) -> &mut C {
+        &mut self.context
+    }
+
     pub fn local(&self) -> &PublicKey
     where
         G: Signer,

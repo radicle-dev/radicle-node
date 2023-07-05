@@ -200,7 +200,7 @@ fn test_replication() {
 }
 
 #[test]
-fn test_replication_no_delegates() {
+fn test_replication_ref_in_sigrefs() {
     logger::init(log::Level::Debug);
 
     let tmp = tempfile::tempdir().unwrap();
@@ -226,11 +226,19 @@ fn test_replication_no_delegates() {
     alice.handle.track_repo(acme, Scope::All).unwrap();
     let result = alice.handle.fetch(acme, bob.id).unwrap();
 
-    assert_matches!(
-        result,
-        FetchResult::Failed {
-            reason
-        } if reason == "no delegates in transfer"
+    assert_matches!(result, FetchResult::Success { .. });
+
+    // alice still sees bob's master branch since it was in his
+    // sigrefs.
+    assert!(
+        alice
+            .storage
+            .repository(acme)
+            .unwrap()
+            .reference(&bob.id, &git::qualified!("refs/heads/master"))
+            .is_ok(),
+        "refs/namespaces/{}/refs/heads/master does not exist",
+        bob.id
     );
 }
 
@@ -856,6 +864,7 @@ fn test_outdated_sigrefs() {
     let repo = alice.storage.repository(rid).unwrap();
     assert!(repo.remote(&eve.id).is_ok());
 
+    log::debug!(target: "test", "Bob fetches from Eve..");
     assert_matches!(
         bob.handle.fetch(rid, eve.id).unwrap(),
         FetchResult::Success { .. }

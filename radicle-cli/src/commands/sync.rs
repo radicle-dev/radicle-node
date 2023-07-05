@@ -267,7 +267,11 @@ fn fetch_all(
     // Get seeds. This consults the local routing table only.
     let seeds = node.seeds(rid)?;
     let mut results = FetchResults::default();
-    let (connected, mut disconnected) = seeds.partition();
+    let (mut connected, mut disconnected) = seeds.partition();
+
+    // N.b. sort the seeds for deterministic testing.
+    connected.sort_by(|x, y| x.nid.cmp(&y.nid));
+    disconnected.sort_by(|x, y| x.nid.cmp(&y.nid));
 
     // Fetch from connected seeds.
     for seed in connected.iter().take(count) {

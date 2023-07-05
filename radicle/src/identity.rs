@@ -4,6 +4,7 @@ pub mod project;
 
 use std::collections::HashMap;
 
+use radicle_fetch as fetch;
 use radicle_git_ext::Oid;
 use thiserror::Error;
 
@@ -37,6 +38,8 @@ pub enum IdentityError {
     MismatchedRoot(Oid),
     #[error("the identity branch is missing")]
     MissingBranch,
+    #[error("no delegate 'rad/id's were found")]
+    MissingDelegateIds,
     #[error("the document root is missing")]
     MissingRoot,
     #[error("root commit is missing one or more delegate signatures")]
@@ -164,6 +167,21 @@ impl Identity<Untrusted> {
         })
     }
 }
+
+impl fetch::Verified for Identity<doc::Id> {
+    fn delegates(&self) -> nonempty::NonEmpty<PublicKey> {
+        self.doc.delegates.clone().map(|did| did.into())
+    }
+
+    fn content_id(&self) -> fetch::gix::ObjectId {
+        fetch::gix::oid::to_object_id(self.head)
+    }
+
+    fn revision(&self) -> fetch::gix::ObjectId {
+        fetch::gix::oid::to_object_id(self.current)
+    }
+}
+
 #[cfg(test)]
 mod test {
     use qcheck_macros::quickcheck;

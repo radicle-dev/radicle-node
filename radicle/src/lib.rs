@@ -3,6 +3,7 @@
 #![allow(clippy::iter_nth_zero)]
 
 pub extern crate radicle_crypto as crypto;
+pub extern crate radicle_fetch as fetch;
 
 #[macro_use]
 extern crate amplify;

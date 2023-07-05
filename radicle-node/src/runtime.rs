@@ -10,6 +10,7 @@ use std::{fs, io, net, time};
 use crossbeam_channel as chan;
 use cyphernet::Ecdh;
 use netservices::resource::NetAccept;
+use radicle::fetch::gix::refdb::UserInfo;
 use reactor::poller::popol;
 use reactor::Reactor;
 use thiserror::Error;
@@ -130,6 +131,7 @@ impl Runtime {
         G: Ecdh<Pk = NodeId> + Clone,
     {
         let id = *signer.public_key();
+        let alias = config.alias.clone();
         let node_dir = home.node();
         let network = config.network;
         let rng = fastrand::Rng::new();
@@ -138,6 +140,8 @@ impl Runtime {
         let address_db = node_dir.join(ADDRESS_DB_FILE);
         let routing_db = node_dir.join(ROUTING_DB_FILE);
         let tracking_db = node_dir.join(TRACKING_DB_FILE);
+        let scope = config.scope;
+        let policy = config.policy;
 
         log::info!(target: "node", "Opening address book {}..", address_db.display());
         let mut addresses = address::Book::open(address_db)?;
@@ -146,10 +150,10 @@ impl Runtime {
         let routing = routing::Table::open(routing_db)?;
 
         log::info!(target: "node", "Opening tracking policy table {}..", tracking_db.display());
-        let tracking = tracking::Store::open(tracking_db)?;
-        let tracking = tracking::Config::new(config.policy, config.scope, tracking);
+        let tracking = tracking::Store::open(tracking_db.clone())?;
+        let tracking = tracking::Config::new(policy, scope, tracking);
 
-        log::info!(target: "node", "Default tracking policy set to '{}'", &config.policy);
+        log::info!(target: "node", "Default tracking policy set to '{}'", &policy);
         log::info!(target: "node", "Initializing service ({:?})..", network);
 
         let announcement = if let Some(ann) = fs::read(&node_dir.join(NODE_ANNOUNCEMENT_FILE))
@@ -211,7 +215,7 @@ impl Runtime {
         );
 
         let (worker_send, worker_recv) = chan::unbounded::<worker::Task>();
-        let mut wire = Wire::new(service, worker_send, signer, proxy, clock);
+        let mut wire = Wire::new(service, worker_send, signer.clone(), proxy, clock);
         let mut local_addrs = Vec::new();
 
         for addr in listen {
@@ -234,14 +238,27 @@ impl Runtime {
             );
         }
 
+        let nid = *signer.public_key();
+        let fetch = worker::FetchConfig {
+            policy,
+            scope,
+            tracking_db,
+            limit: radicle::fetch::FetchLimit::default(),
+            info: UserInfo {
+                alias: alias.to_string(),
+                key: nid,
+            },
+            signer,
+        };
         let pool = worker::Pool::with(
-            id,
             worker_recv,
+            nid,
             handle.clone(),
             worker::Config {
                 capacity: 8,
                 timeout: time::Duration::from_secs(9),
                 storage: storage.clone(),
+                fetch,
                 daemon,
                 atomic,
             },

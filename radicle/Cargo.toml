@@ -45,6 +45,10 @@ path = "../radicle-crypto"
 version = "0"
 features = ["radicle-git-ext", "ssh", "sqlite", "cyphernet"]
 
+[dependencies.radicle-fetch]
+path = "../radicle-fetch"
+version = "0"
+
 [dependencies.radicle-ssh]
 path = "../radicle-ssh"
 version = "0"

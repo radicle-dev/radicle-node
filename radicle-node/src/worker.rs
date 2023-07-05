@@ -1,28 +1,28 @@
 mod channels;
 mod fetch;
-mod tunnel;
+mod upload_pack;
 
-use std::collections::{BTreeSet, HashSet};
-use std::io::{prelude::*, BufReader};
-use std::ops::ControlFlow;
-use std::{env, io, net, process, time};
+use std::collections::HashSet;
+use std::path::PathBuf;
+use std::{io, net, time};
 
 use crossbeam_channel as chan;
 
+use radicle::fetch::gix::refdb::UserInfo;
+use radicle::fetch::FetchLimit;
 use radicle::identity::Id;
 use radicle::prelude::NodeId;
-use radicle::storage::{Namespaces, ReadRepository, RefUpdate};
-use radicle::{git, storage, Storage};
+use radicle::storage::RefUpdate;
+use radicle::{crypto, Storage};
 
 use crate::runtime::{thread, Handle};
+use crate::service::tracking;
 use crate::wire::StreamId;
-use channels::{ChannelReader, ChannelWriter};
-use tunnel::Tunnel;
 
 pub use channels::{ChannelEvent, Channels};
 
 /// Worker pool configuration.
-pub struct Config {
+pub struct Config<G> {
     /// Number of worker threads.
     pub capacity: usize,
     /// Whether to use atomic fetches.
@@ -33,6 +33,8 @@ pub struct Config {
     pub daemon: net::SocketAddr,
     /// Git storage.
     pub storage: Storage,
+
+    pub fetch: FetchConfig<G>,
 }
 
 /// Error returned by fetch.
@@ -43,11 +45,15 @@ pub enum FetchError {
     #[error(transparent)]
     Io(#[from] io::Error),
     #[error(transparent)]
-    StagingInit(#[from] fetch::error::Init),
+    Fetch(#[from] fetch::error::Fetch),
     #[error(transparent)]
-    StagingTransition(#[from] fetch::error::Transition),
+    Handle(#[from] fetch::error::Handle),
     #[error(transparent)]
-    StagingTransfer(#[from] fetch::error::Transfer),
+    Identity(#[from] radicle::identity::IdentityError),
+    #[error(transparent)]
+    Storage(#[from] radicle::storage::Error),
+    #[error(transparent)]
+    Tracking(#[from] radicle::node::tracking::store::Error),
 }
 
 impl FetchError {
@@ -83,8 +89,6 @@ pub enum FetchRequest {
     Initiator {
         /// Repo to fetch.
         rid: Id,
-        /// Namespaces to fetch.
-        namespaces: Namespaces,
         /// Remote peer we are interacting with.
         remote: NodeId,
     },
@@ -135,18 +139,35 @@ pub struct TaskResult {
     pub stream: StreamId,
 }
 
-/// A worker that replicates git objects.
-struct Worker {
-    nid: NodeId,
-    storage: Storage,
-    tasks: chan::Receiver<Task>,
-    daemon: net::SocketAddr,
-    timeout: time::Duration,
-    handle: Handle,
-    atomic: bool,
+#[derive(Debug, Clone)]
+pub struct FetchConfig<G> {
+    /// Default policy, if a policy for a specific node or repository was not found.
+    pub policy: tracking::Policy,
+    /// Default scope, if a scope for a specific repository was not found.
+    pub scope: tracking::Scope,
+    /// Path to the tracking database.
+    pub tracking_db: PathBuf,
+    /// Data limits when fetching from a remote.
+    pub limit: FetchLimit,
+    /// Information of the local peer.
+    pub info: UserInfo,
+    /// Signer of the local peer.
+    pub signer: G,
 }
 
-impl Worker {
+/// A worker that replicates git objects.
+struct Worker<G> {
+    nid: NodeId,
+    storage: Storage,
+    fetch_config: FetchConfig<G>,
+    tasks: chan::Receiver<Task>,
+    handle: Handle,
+}
+
+impl<G> Worker<G>
+where
+    G: Clone + crypto::Signer,
+{
     /// Waits for tasks and runs them. Blocks indefinitely unless there is an error receiving
     /// the next task.
     fn run(mut self) -> Result<(), chan::RecvError> {
@@ -163,7 +184,8 @@ impl Worker {
             stream,
         } = task;
         let remote = fetch.remote();
-        let result = self._process(fetch, stream, channels);
+        let tunnel = channels::Tunnel::new(self.handle.clone(), channels, remote);
+        let result = self._process(fetch, stream, tunnel);
 
         log::trace!(target: "worker", "Sending response back to service..");
 
@@ -184,32 +206,31 @@ impl Worker {
         &mut self,
         fetch: FetchRequest,
         stream: StreamId,
-        mut channels: Channels,
+        mut channels: channels::Tunnel,
     ) -> FetchResult {
         match fetch {
-            FetchRequest::Initiator {
-                rid,
-                namespaces,
-                remote,
-            } => {
+            FetchRequest::Initiator { rid, remote } => {
                 log::debug!(target: "worker", "Worker processing outgoing fetch for {}", rid);
-                let result = self.fetch(rid, remote, stream, &namespaces, channels);
+                let result = self.fetch(rid, remote, channels);
 
                 FetchResult::Initiator { rid, result }
             }
             FetchRequest::Responder { remote } => {
-                log::debug!(target: "worker", "Worker processing incoming fetch..");
+                log::debug!(target: "worker", "Worker processing incoming fetch for {remote}..");
 
-                let (stream_w, stream_r) = channels.split();
-                // Nb. two fetches are usually expected: one for the *special* refs,
-                // followed by another for the signed refs.
-                let result = loop {
-                    match self.upload_pack(remote, stream, stream_r, stream_w) {
-                        Ok(ControlFlow::Continue(())) => continue,
-                        Ok(ControlFlow::Break(rid)) => break Ok(rid),
-                        Err(e) => break Err(e),
+                let (stream_r, stream_w) = channels.split();
+                let (header, stream_r) = match upload_pack::header(stream_r) {
+                    Ok(streams) => streams,
+                    Err(e) => {
+                        return FetchResult::Responder {
+                            result: Err(e.into()),
+                        }
                     }
                 };
+                let result =
+                    upload_pack::upload_pack(&self.nid, &self.storage, &header, stream_r, stream_w)
+                        .map(|_| ())
+                        .map_err(|e| e.into());
                 log::debug!(target: "worker", "Upload process on stream {stream} exited with result {result:?}");
 
                 FetchResult::Responder { result }
@@ -221,346 +242,29 @@ impl Worker {
         &mut self,
         rid: Id,
         remote: NodeId,
-        stream: StreamId,
-        namespaces: &Namespaces,
-        mut channels: Channels,
+        tunnel: channels::Tunnel,
     ) -> Result<(Vec<RefUpdate>, HashSet<NodeId>), FetchError> {
-        let staging =
-            fetch::StagingPhaseInitial::new(&self.storage, rid, self.nid, namespaces.clone())?;
-        let refs = if staging.repo.is_cloning() {
-            match self._fetch(
-                &staging.repo,
-                staging.repo.is_cloning(),
-                remote,
-                staging.refspecs(),
-                stream,
-                &mut channels,
-            ) {
-                Ok(_) => {
-                    log::debug!(target: "worker", "Initial fetch for {rid} exited successfully")
-                }
-                Err(e) => {
-                    log::error!(target: "worker", "Initial fetch for {rid} failed: {e}");
-                    return Err(e);
-                }
-            }
+        let FetchConfig {
+            policy,
+            scope,
+            tracking_db,
+            limit,
+            info,
+            signer,
+        } = &self.fetch_config;
+        let tracking =
+            tracking::Config::new(*policy, *scope, tracking::Store::reader(tracking_db)?);
 
-            // TODO(finto): when cloning we simply fetch the special
-            // rad refs from the remote side, however, when the
-            // repository already exists we need to `ls-remote` (see
-            // below). The result of the ls-remote is a BTreeSet of
-            // refs and so we need return an empty set here so that we
-            // can pass them into `into_final`. This is seems like a
-            // code smell to me due to bad boundaries between the
-            // logic in this module and the logic in the fetch module.
-            BTreeSet::new()
-        } else {
-            self.ls_refs(
-                &staging.repo,
-                staging.ls_remote_refs(),
-                remote,
-                stream,
-                &mut channels,
-            )?
-        };
+        let handle = fetch::Handle::new(
+            rid,
+            signer.clone(),
+            info.clone(),
+            &self.storage,
+            tracking,
+            tunnel,
+        )?;
 
-        let staging = staging.into_final(refs)?;
-
-        match self._fetch(
-            &staging.repo,
-            staging.repo.is_cloning(),
-            remote,
-            staging.refspecs(),
-            stream,
-            &mut channels,
-        ) {
-            Ok(()) => log::debug!(target: "worker", "Final fetch for {rid} exited successfully"),
-            Err(e) => {
-                log::error!(target: "worker", "Final fetch for {rid} failed: {e}");
-                return Err(e);
-            }
-        }
-
-        staging.transfer().map_err(FetchError::from)
-    }
-
-    fn upload_pack(
-        &mut self,
-        remote: NodeId,
-        stream: StreamId,
-        stream_r: &mut ChannelReader,
-        stream_w: &mut ChannelWriter,
-    ) -> Result<ControlFlow<()>, UploadError> {
-        log::debug!(target: "worker", "Waiting for Git request pktline from {remote}..");
-
-        // Read the request packet line to know what repository we're uploading.
-        let (rid, request) = match pktline::Reader::new(stream_r).read_request_pktline() {
-            Ok((req, pktline)) => (req.repo, pktline),
-            Err(err) if err.kind() == io::ErrorKind::ConnectionReset => {
-                log::debug!(
-                    target: "worker",
-                    "Upload process received stream `close` from {remote}"
-                );
-                return Ok(ControlFlow::Break(()));
-            }
-            Err(err) => {
-                return Err(UploadError::PacketLine(err));
-            }
-        };
-        log::debug!(target: "worker", "Received Git request pktline for {rid}..");
-
-        match self._upload_pack(rid, remote, request, stream, stream_r, stream_w) {
-            Ok(()) => {
-                log::debug!(target: "worker", "Upload of {rid} to {remote} on stream {stream} exited successfully");
-
-                Ok(ControlFlow::Continue(()))
-            }
-            Err(e) => Err(e),
-        }
-    }
-
-    fn _upload_pack(
-        &mut self,
-        rid: Id,
-        remote: NodeId,
-        request: Vec<u8>,
-        stream: StreamId,
-        stream_r: &mut ChannelReader,
-        stream_w: &mut ChannelWriter,
-    ) -> Result<(), UploadError> {
-        log::debug!(target: "worker", "Connecting to daemon..");
-
-        // Connect to our local git daemon, running as a child process.
-        let daemon = net::TcpStream::connect_timeout(&self.daemon, self.timeout)
-            .map_err(UploadError::DaemonConnectionFailed)?;
-        let (mut daemon_r, mut daemon_w) = (daemon.try_clone()?, daemon);
-
-        daemon_r.set_read_timeout(Some(self.timeout))?;
-        daemon_w.set_write_timeout(Some(self.timeout))?;
-
-        // Write the raw request to the daemon, once we've parsed it.
-        daemon_w.write_all(&request)?;
-
-        log::debug!(target: "worker", "Entering Git protocol loop for {rid}..");
-
-        thread::scope(|s| {
-            let daemon_to_stream = thread::spawn_scoped(&self.nid, "upload-pack", s, || {
-                let mut buffer = [0; u16::MAX as usize + 1];
-
-                loop {
-                    match daemon_r.read(&mut buffer) {
-                        Ok(0) => break,
-                        Ok(n) => {
-                            stream_w.send(buffer[..n].to_vec())?;
-
-                            if let Err(e) = self.handle.flush(remote, stream) {
-                                log::error!(target: "worker", "Worker channel disconnected; aborting");
-                                return Err(e);
-                            }
-                        }
-                        Err(e) => {
-                            if e.kind() == io::ErrorKind::UnexpectedEof {
-                                log::debug!(target: "worker", "Daemon closed the git connection for {rid}");
-                                break;
-                            }
-                            return Err(e);
-                        }
-                    }
-                }
-                Self::eof(remote, stream, stream_w, &mut self.handle)
-            });
-
-            let stream_to_daemon = thread::spawn_scoped(&self.nid, "upload-pack", s, move || {
-                match stream_r
-                    .pipe(&mut daemon_w)
-                    .and_then(|()| daemon_w.shutdown(net::Shutdown::Both))
-                {
-                    Ok(()) => Ok(()),
-                    // On macOS, this error is returned if the socket is already closed.
-                    // We don't consider that a problem, as it just returns `Ok(())` on
-                    // Linux.
-                    Err(e) if e.kind() == io::ErrorKind::NotConnected => Ok(()),
-                    Err(e) => Err(e),
-                }
-            });
-
-            stream_to_daemon.join().unwrap()?;
-            daemon_to_stream.join().unwrap()?;
-
-            Ok::<(), UploadError>(())
-        })
-    }
-
-    fn ls_refs(
-        &self,
-        repo: &fetch::StagedRepository,
-        namespaces: impl IntoIterator<Item = git::PatternString>,
-        remote: NodeId,
-        stream: StreamId,
-        channels: &mut Channels,
-    ) -> Result<BTreeSet<git::Namespaced<'static>>, FetchError> {
-        let tunnel = Tunnel::with(channels, stream, self.nid, remote, self.handle.clone())?;
-        let tunnel_addr = tunnel.local_addr();
-        let mut cmd = process::Command::new("git");
-        cmd.current_dir(repo.path())
-            .env_clear()
-            .envs(env::vars().filter(|(k, _)| k == "PATH" || k.starts_with("GIT_TRACE")))
-            .envs(git::env::GIT_DEFAULT_CONFIG)
-            .args(["-c", "protocol.version=2"])
-            .arg("ls-remote")
-            .arg(format!("git://{tunnel_addr}/{}", repo.id.canonical()));
-
-        for ns in namespaces.into_iter() {
-            cmd.arg(ns.as_str());
-        }
-
-        cmd.stdout(process::Stdio::piped())
-            .stderr(process::Stdio::piped())
-            .stdin(process::Stdio::piped());
-
-        log::debug!(target: "worker", "Running command: {:?}", cmd);
-
-        let mut refs = BTreeSet::new();
-        let mut child = cmd.spawn()?;
-        let stderr = child.stderr.take().unwrap();
-        let stdout = child.stdout.take().unwrap();
-
-        // Since `ls-remote` may return a lot of data, we read the child's stdout concurrently, to
-        // prevent deadlocks that could arise if we fill the pipe buffer before the process exits.
-        thread::scope(|s| {
-            thread::spawn_scoped(&self.nid, "ls-refs", s, || {
-                for line in BufReader::new(stderr).lines().flatten() {
-                    log::debug!(target: "worker", "Git: {}", line);
-                }
-            });
-            thread::spawn_scoped(&self.nid, "ls-refs", s, || {
-                for line in BufReader::new(stdout).lines().flatten() {
-                    log::debug!(target: "worker", "Git: {}", line);
-
-                    let r = match line.split_whitespace().next_back() {
-                        Some(r) => r,
-                        None => {
-                            log::trace!(target: "worker", "Git: ls-remote returned unexpected format {line}");
-                            continue;
-                        }
-                    };
-                    match git::RefString::try_from(r) {
-                        Ok(r) => {
-                            if let Some(ns) = r.to_namespaced() {
-                                refs.insert(ns.to_owned());
-                            } else {
-                                log::debug!(target: "worker", "Git: non-namespaced ref '{r}'")
-                            }
-                        }
-                        Err(err) => {
-                            log::warn!(target: "worker", "Git: invalid refname '{r}' {err}")
-                        }
-                    }
-                }
-            });
-
-            tunnel.run(self.timeout)?;
-
-            Ok::<_, FetchError>(())
-        })?;
-
-        let result = child.wait()?;
-
-        if result.success() {
-            Ok(refs)
-        } else {
-            Err(FetchError::CommandFailed {
-                code: result.code().unwrap_or(1),
-            })
-        }
-    }
-
-    fn _fetch<S>(
-        &self,
-        repo: &storage::git::Repository,
-        is_cloning: bool,
-        remote: NodeId,
-        specs: S,
-        stream: StreamId,
-        channels: &mut Channels,
-    ) -> Result<(), FetchError>
-    where
-        S: IntoIterator<Item = fetch::Refspec>,
-    {
-        let tunnel = Tunnel::with(channels, stream, self.nid, remote, self.handle.clone())?;
-        let tunnel_addr = tunnel.local_addr();
-        let mut cmd = process::Command::new("git");
-        cmd.current_dir(repo.path())
-            .env_clear()
-            .envs(env::vars().filter(|(k, _)| k == "PATH" || k.starts_with("GIT_TRACE")))
-            .envs(git::env::GIT_DEFAULT_CONFIG)
-            .args(["-c", "protocol.version=2"])
-            .arg("fetch")
-            .arg("--verbose");
-
-        if self.atomic {
-            // Enable atomic fetch. Only works with Git 2.31 and later.
-            cmd.arg("--atomic");
-        }
-
-        let namespace = self.nid.to_namespace();
-        let mut fetchspecs = specs
-            .into_iter()
-            // Filter out our own refs, if we aren't cloning.
-            .filter(|fs| is_cloning || !fs.dst.starts_with(namespace.as_str()))
-            .map(|spec| spec.to_string())
-            .collect::<Vec<_>>();
-
-        if !is_cloning {
-            // Make sure we don't fetch our own refs via a glob pattern.
-            fetchspecs.push(format!("^refs/namespaces/{}/*", self.nid));
-        }
-
-        cmd.arg(format!("git://{tunnel_addr}/{}", repo.id.canonical()))
-            .args(&fetchspecs)
-            .stdout(process::Stdio::piped())
-            .stderr(process::Stdio::piped())
-            .stdin(process::Stdio::piped());
-
-        log::debug!(target: "worker", "Running command: {:?}", cmd);
-
-        let mut child = cmd.spawn()?;
-        let stderr = child.stderr.take().unwrap();
-
-        thread::spawn(&self.nid, "fetch", || {
-            for line in BufReader::new(stderr).lines().flatten() {
-                log::debug!(target: "worker", "Git: {}", line);
-            }
-        });
-
-        tunnel.run(self.timeout)?;
-
-        let result = child.wait()?;
-        if result.success() {
-            Ok(())
-        } else {
-            Err(FetchError::CommandFailed {
-                code: result.code().unwrap_or(1),
-            })
-        }
-    }
-
-    fn eof(
-        remote: NodeId,
-        stream: StreamId,
-        sender: &mut ChannelWriter,
-        handle: &mut Handle,
-    ) -> Result<(), io::Error> {
-        log::debug!(target: "worker", "Sending end-of-file to remote {remote}..");
-
-        if sender.eof().is_err() {
-            log::error!(target: "worker", "Fetch error: error sending end-of-file message: channel disconnected");
-            return Err(io::ErrorKind::BrokenPipe.into());
-        }
-        if let Err(e) = handle.flush(remote, stream) {
-            log::error!(target: "worker", "Error flushing worker stream: {e}");
-        }
-        Ok(())
+        Ok(handle.fetch(rid, &self.storage, *limit, remote)?.into())
     }
 }
 
@@ -571,7 +275,15 @@ pub struct Pool {
 
 impl Pool {
     /// Create a new worker pool with the given parameters.
-    pub fn with(nid: NodeId, tasks: chan::Receiver<Task>, handle: Handle, config: Config) -> Self {
+    pub fn with<G>(
+        tasks: chan::Receiver<Task>,
+        nid: NodeId,
+        handle: Handle,
+        config: Config<G>,
+    ) -> Self
+    where
+        G: crypto::Signer + Clone + Send + Sync + 'static,
+    {
         let mut pool = Vec::with_capacity(config.capacity);
         for i in 0..config.capacity {
             let worker = Worker {
@@ -579,9 +291,7 @@ impl Pool {
                 tasks: tasks.clone(),
                 handle: handle.clone(),
                 storage: config.storage.clone(),
-                daemon: config.daemon,
-                timeout: config.timeout,
-                atomic: config.atomic,
+                fetch_config: config.fetch.clone(),
             };
             let thread = thread::spawn(&nid, format!("worker#{i}"), || worker.run());
 

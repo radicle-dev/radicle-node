@@ -1,47 +1,36 @@
-use std::io;
-
 use thiserror::Error;
 
-use radicle::{git, identity, storage, storage::refs};
+use radicle::{git, storage};
 
 #[derive(Debug, Error)]
-pub enum Init {
+pub enum Fetch {
     #[error(transparent)]
-    Io(#[from] io::Error),
-    #[error(transparent)]
-    Setup(#[from] Setup),
-}
+    Run(#[from] radicle::fetch::Error),
 
-#[derive(Debug, Error)]
-pub enum Setup {
     #[error(transparent)]
     Git(#[from] git::raw::Error),
-    #[error(transparent)]
-    Identity(#[from] identity::IdentityError),
+
     #[error(transparent)]
     Storage(#[from] storage::Error),
+
+    #[error(transparent)]
+    StorageCopy(#[from] std::io::Error),
+
+    #[error(transparent)]
+    Identity(#[from] radicle::identity::IdentityError),
 }
 
 #[derive(Debug, Error)]
-pub enum Transfer {
+pub enum Handle {
     #[error(transparent)]
-    Git(#[from] git::raw::Error),
-    #[error(transparent)]
-    Identity(#[from] identity::IdentityError),
-    #[error(transparent)]
-    Storage(#[from] storage::Error),
-    #[error("no delegates in transfer")]
-    NoDelegates,
-}
+    Context(#[from] super::context::error::Init),
 
-#[derive(Debug, Error)]
-pub enum Transition {
     #[error(transparent)]
-    Doc(#[from] identity::doc::DocError),
+    Identity(#[from] radicle::identity::IdentityError),
+
     #[error(transparent)]
-    Git(#[from] git::raw::Error),
+    Refdb(#[from] radicle::fetch::gix::refdb::error::Init),
+
     #[error(transparent)]
-    Identity(#[from] identity::IdentityError),
-    #[error(transparent)]
-    Refs(#[from] refs::Error),
+    Storage(#[from] radicle::storage::Error),
 }

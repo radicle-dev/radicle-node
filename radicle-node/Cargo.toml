@@ -19,6 +19,7 @@ colored = { version = "1.9.0" }
 crossbeam-channel = { version = "0.5.6" }
 cyphernet = { version = "0.3.0", features = ["tor", "dns", "ed25519", "p2p-ed25519"] }
 fastrand = { version = "1.9.0" }
+gix-packetline = { version = "0.16.3", features = ["blocking-io"] }
 io-reactor = { version = "0.2.1", features = ["popol"] }
 lexopt = { version = "0.2.1" }
 libc = { version = "0.2.137" }
@@ -26,6 +27,7 @@ log = { version = "0.4.17", features = ["std"] }
 localtime = { version = "1.2.0" }
 netservices = { version = "0.3.0", features = ["io-reactor", "socket2"] }
 nonempty = { version = "0.8.1", features = ["serialize"] }
+once_cell = { version = "1.13" }
 qcheck = { version = "1", default-features = false, optional = true }
 # N.b. this is required to use macros, even though it's re-exported
 # through radicle

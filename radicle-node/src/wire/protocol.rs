@@ -112,7 +112,7 @@ impl Streams {
 
     /// Register an open stream.
     fn register(&mut self, stream: StreamId) -> Option<worker::Channels> {
-        let (wire, worker) = worker::Channels::pair(DEFAULT_CHANNEL_TIMEOUT)
+        let (wire, worker) = worker::Channels::pair(stream, DEFAULT_CHANNEL_TIMEOUT)
             .expect("Streams::register: fatal: unable to create channels");
 
         match self.streams.entry(stream) {
@@ -824,11 +824,7 @@ where
                 Io::Wakeup(d) => {
                     self.actions.push_back(reactor::Action::SetTimer(d.into()));
                 }
-                Io::Fetch {
-                    rid,
-                    remote,
-                    namespaces,
-                } => {
+                Io::Fetch { rid, remote, .. } => {
                     log::trace!(target: "wire", "Processing fetch for {rid} from {remote}..");
 
                     let Some((fd, Peer::Connected { link, streams,  .. })) =
@@ -846,11 +842,7 @@ where
 
                     let link = *link;
                     let task = Task {
-                        fetch: FetchRequest::Initiator {
-                            rid,
-                            namespaces,
-                            remote,
-                        },
+                        fetch: FetchRequest::Initiator { rid, remote },
                         stream,
                         channels,
                     };
