@@ -1,5 +1,4 @@
 use std::ffi::OsString;
-use std::fs;
 
 use anyhow::anyhow;
 
@@ -7,6 +6,7 @@ use radicle::identity::Id;
 use radicle::node;
 use radicle::node::Handle as _;
 use radicle::storage;
+use radicle::storage::WriteStorage;
 use radicle::Profile;
 
 use crate::git;
@@ -82,7 +82,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     if !options.confirm || term::confirm(format!("Remove {rid}?")) {
         untrack(&rid, &profile)?;
         remove_remote(&rid)?;
-        fs::remove_dir_all(path)?;
+        storage.remove(rid)?;
         term::success!("Successfully removed {rid} from storage");
     }
 
