@@ -26,7 +26,7 @@ Once the code is ready, we open a patch with our changes.
 
 ``` (stderr)
 $ git push rad -o no-sync -o patch.message="Define power requirements" -o patch.message="See details." HEAD:refs/patches
-✓ Patch f5e2be41827ee9f80bcdcd02f4f0451287b36229 opened
+✓ Patch 3581e83ad18f5cdd806ab50fa11cfd5dd4e8ae1c opened
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk
  * [new reference]   HEAD -> refs/patches
 ```
@@ -38,12 +38,12 @@ $ rad patch
 ╭────────────────────────────────────────────────────────────────────────────────╮
 │ ●  ID       Title                      Author         Head     +   -   Updated │
 ├────────────────────────────────────────────────────────────────────────────────┤
-│ ●  f5e2be4  Define power requirements  bob     (you)  3e674d1  +0  -0  now     │
+│ ●  3581e83  Define power requirements  bob     (you)  3e674d1  +0  -0  now     │
 ╰────────────────────────────────────────────────────────────────────────────────╯
-$ rad patch show f5e2be41827ee9f80bcdcd02f4f0451287b36229
+$ rad patch show 3581e83ad18f5cdd806ab50fa11cfd5dd4e8ae1c
 ╭────────────────────────────────────────────────────╮
 │ Title     Define power requirements                │
-│ Patch     f5e2be41827ee9f80bcdcd02f4f0451287b36229 │
+│ Patch     3581e83ad18f5cdd806ab50fa11cfd5dd4e8ae1c │
 │ Author    bob (you)                                │
 │ Head      3e674d1a1df90807e934f9ae5da2591dd6848a33 │
 │ Branches  flux-capacitor-power                     │
@@ -62,7 +62,7 @@ We can also confirm that the patch branch is in storage:
 
 ```
 $ git ls-remote rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk refs/heads/patches/*
-3e674d1a1df90807e934f9ae5da2591dd6848a33	refs/heads/patches/f5e2be41827ee9f80bcdcd02f4f0451287b36229
+3e674d1a1df90807e934f9ae5da2591dd6848a33	refs/heads/patches/3581e83ad18f5cdd806ab50fa11cfd5dd4e8ae1c
 ```
 
 Wait, let's add a README too! Just for fun.
@@ -77,14 +77,14 @@ $ git commit --message "Add README, just for the fun"
 ```
 ``` (stderr) RAD_SOCKET=/dev/null
 $ git push -o patch.message="Add README, just for the fun"
-✓ Patch f5e2be4 updated to 68143c579935d115e1551b88154cc41763c43e1f
+✓ Patch 3581e83 updated to 6de8527cdf51f96e12649c7278efe1dccfdee885
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk
-   3e674d1..27857ec  flux-capacitor-power -> patches/f5e2be41827ee9f80bcdcd02f4f0451287b36229
+   3e674d1..27857ec  flux-capacitor-power -> patches/3581e83ad18f5cdd806ab50fa11cfd5dd4e8ae1c
 ```
 
 And let's leave a quick comment for our team:
 
 ```
-$ rad patch comment f5e2be41827ee9f80bcdcd02f4f0451287b36229 --message 'I cannot wait to get back to the 90s!' -q
-9b12eacdf5d326bdd16ed971809a9a88268ca435
+$ rad patch comment 3581e83ad18f5cdd806ab50fa11cfd5dd4e8ae1c --message 'I cannot wait to get back to the 90s!' -q
+b6711a58b45323f3ef2bb87cfb2b3b4d04c22a8b
 ```

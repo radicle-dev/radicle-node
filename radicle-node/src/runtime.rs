@@ -133,7 +133,13 @@ impl Runtime {
         let network = config.network;
         let rng = fastrand::Rng::new();
         let clock = LocalTime::now();
-        let storage = Storage::open(home.storage())?;
+        let storage = Storage::open(
+            home.storage(),
+            git::UserInfo {
+                alias: alias.clone(),
+                key: id,
+            },
+        )?;
         let address_db = node_dir.join(ADDRESS_DB_FILE);
         let routing_db = node_dir.join(ROUTING_DB_FILE);
         let tracking_db = node_dir.join(TRACKING_DB_FILE);

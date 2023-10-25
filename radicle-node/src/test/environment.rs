@@ -107,12 +107,19 @@ impl Environment {
     /// This should be used when a running node is not required.
     pub fn profile(&mut self, alias: &str) -> Profile {
         let home = Home::new(self.tmp().join("home").join(alias).join(".radicle")).unwrap();
-        let storage = Storage::open(home.storage()).unwrap();
         let keystore = Keystore::new(&home.keys());
         let keypair = KeyPair::from_seed(Seed::from([!(self.users as u8); 32]));
         let tracking_db = home.node().join(TRACKING_DB_FILE);
         let alias = Alias::from_str(alias).unwrap();
-        let config = profile::Config::init(alias, &home.config()).unwrap();
+        let config = profile::Config::init(alias.clone(), &home.config()).unwrap();
+        let storage = Storage::open(
+            home.storage(),
+            git::UserInfo {
+                alias,
+                key: keypair.pk.into(),
+            },
+        )
+        .unwrap();
 
         tracking::Config::open(tracking_db).unwrap();
         let addresses_db = home.node().join(ADDRESS_DB_FILE);
@@ -329,7 +336,14 @@ impl Node<MockSigner> {
         );
         let home = Home::new(home).unwrap();
         let signer = MockSigner::default();
-        let storage = Storage::open(home.storage()).unwrap();
+        let storage = Storage::open(
+            home.storage(),
+            git::UserInfo {
+                alias: config.alias.clone(),
+                key: *signer.public_key(),
+            },
+        )
+        .unwrap();
         let addresses = home.addresses_mut().unwrap();
         let tracking = home.tracking_mut().unwrap();
         let routing = home.routing_mut().unwrap();

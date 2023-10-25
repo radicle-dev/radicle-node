@@ -20,12 +20,12 @@ use thiserror::Error;
 use crate::crypto::ssh::agent::Agent;
 use crate::crypto::ssh::{keystore, Keystore, Passphrase};
 use crate::crypto::{PublicKey, Signer};
-use crate::node;
 use crate::node::{address, routing, tracking, Alias, AliasStore};
 use crate::prelude::Did;
 use crate::prelude::NodeId;
 use crate::storage::git::transport;
 use crate::storage::git::Storage;
+use crate::{git, node};
 
 /// Environment variables used by radicle.
 pub mod env {
@@ -167,10 +167,16 @@ pub struct Profile {
 
 impl Profile {
     pub fn init(home: Home, alias: Alias, passphrase: Option<Passphrase>) -> Result<Self, Error> {
-        let storage = Storage::open(home.storage())?;
         let keystore = Keystore::new(&home.keys());
         let public_key = keystore.init("radicle", passphrase)?;
-        let config = Config::init(alias, home.config().as_path())?;
+        let config = Config::init(alias.clone(), home.config().as_path())?;
+        let storage = Storage::open(
+            home.storage(),
+            git::UserInfo {
+                alias,
+                key: public_key,
+            },
+        )?;
 
         transport::local::register(storage.clone());
 
@@ -185,12 +191,18 @@ impl Profile {
 
     pub fn load() -> Result<Self, Error> {
         let home = self::home()?;
-        let storage = Storage::open(home.storage())?;
         let keystore = Keystore::new(&home.keys());
         let public_key = keystore
             .public_key()?
             .ok_or_else(|| Error::NotFound(home.path().to_path_buf()))?;
         let config = Config::load(home.config().as_path())?;
+        let storage = Storage::open(
+            home.storage(),
+            git::UserInfo {
+                alias: config.alias().clone(),
+                key: public_key,
+            },
+        )?;
 
         transport::local::register(storage.clone());
 
@@ -205,6 +217,13 @@ impl Profile {
 
     pub fn id(&self) -> &PublicKey {
         &self.public_key
+    }
+
+    pub fn info(&self) -> git::UserInfo {
+        git::UserInfo {
+            alias: self.config.alias().clone(),
+            key: *self.id(),
+        }
     }
 
     pub fn did(&self) -> Did {

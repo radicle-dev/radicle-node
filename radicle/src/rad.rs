@@ -361,7 +361,7 @@ mod tests {
         let tempdir = tempfile::tempdir().unwrap();
         let signer = MockSigner::default();
         let public_key = *signer.public_key();
-        let storage = Storage::open(tempdir.path().join("storage")).unwrap();
+        let storage = Storage::open(tempdir.path().join("storage"), fixtures::user()).unwrap();
 
         transport::local::register(storage.clone());
 
@@ -415,7 +415,7 @@ mod tests {
         let alice = MockSigner::new(&mut rng);
         let bob = MockSigner::new(&mut rng);
         let bob_id = bob.public_key();
-        let storage = Storage::open(tempdir.path().join("storage")).unwrap();
+        let storage = Storage::open(tempdir.path().join("storage"), fixtures::user()).unwrap();
 
         transport::local::register(storage.clone());
 
@@ -452,7 +452,7 @@ mod tests {
         let tempdir = tempfile::tempdir().unwrap();
         let signer = MockSigner::default();
         let remote_id = signer.public_key();
-        let storage = Storage::open(tempdir.path().join("storage")).unwrap();
+        let storage = Storage::open(tempdir.path().join("storage"), fixtures::user()).unwrap();
 
         transport::local::register(storage.clone());
 

@@ -11,10 +11,13 @@ use crate::node::NodeId;
 
 pub use crate::storage::*;
 
+use super::fixtures;
+
 #[derive(Clone, Debug)]
 pub struct MockStorage {
     pub path: PathBuf,
     pub inventory: HashMap<Id, DocAt>,
+    pub info: git::UserInfo,
 
     /// All refs keyed by RID.
     /// Each value is a map of refs keyed by node Id (public key).
@@ -25,17 +28,14 @@ impl MockStorage {
     pub fn new(inventory: Vec<(Id, DocAt)>) -> Self {
         Self {
             path: PathBuf::default(),
+            info: fixtures::user(),
             inventory: inventory.into_iter().collect(),
             remotes: HashMap::new(),
         }
     }
 
     pub fn empty() -> Self {
-        Self {
-            path: PathBuf::default(),
-            inventory: HashMap::new(),
-            remotes: HashMap::new(),
-        }
+        Self::new(Vec::new())
     }
 
     /// Add a remote `node` with `signed_refs` for the repo `rid`.
@@ -54,6 +54,10 @@ impl MockStorage {
 
 impl ReadStorage for MockStorage {
     type Repository = MockRepository;
+
+    fn info(&self) -> &git::UserInfo {
+        &self.info
+    }
 
     fn path(&self) -> &Path {
         self.path.as_path()

@@ -81,10 +81,15 @@ impl<'a> TryFrom<git2::Reference<'a>> for Ref {
 #[derive(Debug, Clone)]
 pub struct Storage {
     path: PathBuf,
+    info: UserInfo,
 }
 
 impl ReadStorage for Storage {
     type Repository = Repository;
+
+    fn info(&self) -> &UserInfo {
+        &self.info
+    }
 
     fn path(&self) -> &Path {
         self.path.as_path()
@@ -125,7 +130,7 @@ impl WriteStorage for Storage {
     }
 
     fn create(&self, rid: Id) -> Result<Self::RepositoryMut, Error> {
-        Repository::create(paths::repository(self, &rid), rid)
+        Repository::create(paths::repository(self, &rid), rid, &self.info)
     }
 
     fn remove(&self, rid: Id) -> Result<(), Error> {
@@ -135,7 +140,7 @@ impl WriteStorage for Storage {
 
 impl Storage {
     // TODO: Return a better error when not found.
-    pub fn open<P: AsRef<Path>>(path: P) -> Result<Self, io::Error> {
+    pub fn open<P: AsRef<Path>>(path: P, info: UserInfo) -> Result<Self, io::Error> {
         let path = path.as_ref().to_path_buf();
 
         match fs::create_dir_all(&path) {
@@ -144,7 +149,7 @@ impl Storage {
             Ok(()) => {}
         }
 
-        Ok(Self { path })
+        Ok(Self { path, info })
     }
 
     pub fn path(&self) -> &Path {
@@ -286,7 +291,7 @@ impl Repository {
     }
 
     /// Create a new repository.
-    pub fn create<P: AsRef<Path>>(path: P, id: Id) -> Result<Self, Error> {
+    pub fn create<P: AsRef<Path>>(path: P, id: Id, info: &UserInfo) -> Result<Self, Error> {
         let backend = git2::Repository::init_opts(
             &path,
             git2::RepositoryInitOptions::new()
@@ -296,9 +301,8 @@ impl Repository {
         )?;
         let mut config = backend.config()?;
 
-        // TODO: Get ahold of user name and/or key.
-        config.set_str("user.name", "radicle")?;
-        config.set_str("user.email", "radicle@localhost")?;
+        config.set_str("user.name", &info.name())?;
+        config.set_str("user.email", &info.email())?;
 
         Ok(Self { id, backend })
     }
@@ -320,7 +324,7 @@ impl Repository {
     ) -> Result<(Self, git::Oid), RepositoryError> {
         let (doc_oid, _) = doc.encode()?;
         let id = Id::from(doc_oid);
-        let repo = Self::create(paths::repository(&storage, &id), id)?;
+        let repo = Self::create(paths::repository(&storage, &id), id, storage.info())?;
         let commit = doc.init(&repo, signer)?;
 
         Ok((repo, commit))
@@ -1116,7 +1120,7 @@ mod tests {
     fn test_references_of() {
         let tmp = tempfile::tempdir().unwrap();
         let signer = MockSigner::default();
-        let storage = Storage::open(tmp.path().join("storage")).unwrap();
+        let storage = Storage::open(tmp.path().join("storage"), fixtures::user()).unwrap();
 
         transport::local::register(storage.clone());
 
@@ -1145,7 +1149,7 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let mut rng = fastrand::Rng::new();
         let signer = MockSigner::new(&mut rng);
-        let storage = Storage::open(tmp.path()).unwrap();
+        let storage = Storage::open(tmp.path(), fixtures::user()).unwrap();
         let proj_id = arbitrary::gen::<Id>(1);
         let alice = *signer.public_key();
         let project = storage.create(proj_id).unwrap();

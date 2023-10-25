@@ -1262,7 +1262,7 @@ mod test {
 
         eve.repo.fetch(bob);
         eve_identity.reload().unwrap();
-        assert_eq!(eve_identity.timeline, vec![a0, a1, a2.id, b1, e1.id]);
+        assert_eq!(eve_identity.timeline, vec![a0, a1, a2.id, e1.id, b1]);
         assert!(!eve_identity.is_delegate(eve.signer.public_key()));
     }
 
@@ -1316,7 +1316,7 @@ mod test {
 
         eve.repo.fetch(bob);
         eve_identity.reload().unwrap();
-        assert_eq!(eve_identity.timeline, vec![a0, a1, a2.id, b1, e1, e2.id]);
+        assert_eq!(eve_identity.timeline, vec![a0, a1, a2.id, e1, b1, e2.id]);
 
         // Her revision is there, although stale, since another revision was accepted since.
         // However, it wasn't pruned, even though rejecting an accepted revision is an error.
@@ -1346,7 +1346,6 @@ mod test {
             .unwrap();
 
         bob.repo.fetch(alice);
-        eve.repo.fetch(bob); // TODO: Why is this needed for it not to panic?
         eve.repo.fetch(alice);
 
         let mut bob_identity = Identity::load_mut(&*bob.repo).unwrap();
@@ -1384,7 +1383,7 @@ mod test {
         eve.repo.fetch(alice);
         eve_identity.reload().unwrap();
 
-        assert_eq!(eve_identity.timeline, vec![a0, a1.id, b1.id, a2, e1.id]);
+        assert_eq!(eve_identity.timeline, vec![a0, a1.id, b1.id, e1.id, a2]);
         assert_eq!(eve_identity.revision(&e1.id).unwrap().state, State::Stale);
     }
 
@@ -1397,7 +1396,7 @@ mod test {
         let bob = MockSigner::new(&mut rng);
         let eve = MockSigner::new(&mut rng);
 
-        let storage = Storage::open(tempdir.path().join("storage")).unwrap();
+        let storage = Storage::open(tempdir.path().join("storage"), fixtures::user()).unwrap();
         let (id, _, _, _) =
             fixtures::project(tempdir.path().join("copy"), &storage, &alice).unwrap();
 

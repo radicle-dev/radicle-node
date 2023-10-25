@@ -21,7 +21,7 @@ z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
 └── refs
     ├── cobs
     │   └── xyz.radicle.id
-    │       └── 2317f74de0494c489a233ca6f29f2b8bff6d4f15
+    │       └── 0656c217f917c3e06234771e9ecae53aba5e173e
     ├── heads
     │   └── master
     └── rad
@@ -49,7 +49,7 @@ history:
 
 ```
 $ rad inspect --history
-commit 2317f74de0494c489a233ca6f29f2b8bff6d4f15
+commit 0656c217f917c3e06234771e9ecae53aba5e173e
 blob   d96f425412c9f8ad5d9a9a05c9831d0728e2338d
 date   Thu, 15 Dec 2022 17:28:04 +0000
 

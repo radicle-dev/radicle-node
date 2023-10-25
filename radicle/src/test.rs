@@ -95,16 +95,23 @@ pub mod setup {
         fn default() -> Self {
             let root = tempfile::tempdir().unwrap();
 
-            Self::new(root, MockSigner::default())
+            Self::new(root, MockSigner::default(), "Radcliff")
         }
     }
 
     impl Node {
-        pub fn new(root: impl AsRef<Path>, signer: MockSigner) -> Self {
+        pub fn new(root: impl AsRef<Path>, signer: MockSigner, alias: &str) -> Self {
             let root = root.as_ref().to_path_buf();
             let home = root.join("home");
             let paths = Home::new(home.as_path()).unwrap();
-            let storage = Storage::open(paths.storage()).unwrap();
+            let storage = Storage::open(
+                paths.storage(),
+                git::UserInfo {
+                    alias: Alias::new(alias),
+                    key: *signer.public_key(),
+                },
+            )
+            .unwrap();
 
             remote::mock::register(signer.public_key(), storage.path());
 
@@ -243,9 +250,21 @@ pub mod setup {
     impl Default for Network {
         fn default() -> Self {
             let tmp = tempfile::tempdir().unwrap();
-            let alice = Node::new(tmp.path().join("alice"), MockSigner::from_seed([!0; 32]));
-            let mut bob = Node::new(tmp.path().join("bob"), MockSigner::from_seed([!1; 32]));
-            let mut eve = Node::new(tmp.path().join("eve"), MockSigner::from_seed([!2; 32]));
+            let alice = Node::new(
+                tmp.path().join("alice"),
+                MockSigner::from_seed([!0; 32]),
+                "alice",
+            );
+            let mut bob = Node::new(
+                tmp.path().join("bob"),
+                MockSigner::from_seed([!1; 32]),
+                "bob",
+            );
+            let mut eve = Node::new(
+                tmp.path().join("eve"),
+                MockSigner::from_seed([!2; 32]),
+                "eve",
+            );
             let repo = alice.project();
             let rid = repo.id;
 

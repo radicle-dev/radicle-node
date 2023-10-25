@@ -1,9 +1,11 @@
 use std::path::Path;
+use std::str::FromStr;
 
-use crate::crypto::{Signer, Verified};
+use crate::crypto::{PublicKey, Signer, Verified};
 use crate::git;
 use crate::identity::doc::Visibility;
 use crate::identity::Id;
+use crate::node::Alias;
 use crate::rad;
 use crate::storage::git::transport;
 use crate::storage::git::Storage;
@@ -12,10 +14,17 @@ use crate::storage::refs::SignedRefs;
 /// The birth of the radicle project, January 1st, 2018.
 pub const RADICLE_EPOCH: i64 = 1514817556;
 
+pub fn user() -> git::UserInfo {
+    git::UserInfo {
+        alias: Alias::new("Radcliff"),
+        key: PublicKey::from_str("z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi").unwrap(),
+    }
+}
+
 /// Create a new storage with a project.
 pub fn storage<P: AsRef<Path>, G: Signer>(path: P, signer: &G) -> Result<Storage, rad::InitError> {
     let path = path.as_ref();
-    let storage = Storage::open(path.join("storage"))?;
+    let storage = Storage::open(path.join("storage"), user())?;
 
     transport::local::register(storage.clone());
     transport::remote::mock::register(signer.public_key(), storage.path());

@@ -22,7 +22,7 @@ Once the code is ready, we open (or create) a patch with our changes for the pro
 
 ``` (stderr)
 $ git push rad -o patch.message="Define power requirements" -o patch.message="See details." HEAD:refs/patches
-✓ Patch a8926643a8f6a65bc386b0131621994000485d4d opened
+✓ Patch 6ff4f09c1b5a81347981f59b02ef43a31a07cdae opened
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
  * [new reference]   HEAD -> refs/patches
 ```
@@ -30,9 +30,9 @@ To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkE
 Now, let's checkout the patch that we just created:
 
 ```
-$ rad patch checkout a892664
-✓ Switched to branch patch/a892664
-✓ Branch patch/a892664 setup to track rad/patches/a8926643a8f6a65bc386b0131621994000485d4d
+$ rad patch checkout 6ff4f09
+✓ Switched to branch patch/6ff4f09
+✓ Branch patch/6ff4f09 setup to track rad/patches/6ff4f09c1b5a81347981f59b02ef43a31a07cdae
 ```
 
 Now, let's add a README too!
@@ -41,7 +41,7 @@ Now, let's add a README too!
 $ touch README.md
 $ git add README.md
 $ git commit --message "Add README, just for the fun"
-[patch/a892664 27857ec] Add README, just for the fun
+[patch/6ff4f09 27857ec] Add README, just for the fun
  1 file changed, 0 insertions(+), 0 deletions(-)
  create mode 100644 README.md
 ```
@@ -55,18 +55,18 @@ Switched to branch 'master'
 ```
 
 We can be safe in the knowledge that our changes on the
-`patch/a892664` branch are still safe:
+`patch/6ff4f09` branch are still safe:
 
 ```
-$ rad patch checkout a892664
-✓ Switched to branch patch/a892664
+$ rad patch checkout 6ff4f09
+✓ Switched to branch patch/6ff4f09
 ```
 
 We can now finish off the update:
 
 ``` (stderr)
 $ git push rad -o patch.message="Add README, just for the fun"
-✓ Patch a892664 updated to 8d8aa0887a11f2a37fa8ed0d5723efa96fd727ed
+✓ Patch 6ff4f09 updated to 0c0942e2ff2488617d950ede15567ca39a29972e
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
-   3e674d1..27857ec  patch/a892664 -> patches/a8926643a8f6a65bc386b0131621994000485d4d
+   3e674d1..27857ec  patch/6ff4f09 -> patches/6ff4f09c1b5a81347981f59b02ef43a31a07cdae
 ```

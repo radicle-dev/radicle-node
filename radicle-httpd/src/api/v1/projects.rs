@@ -1980,7 +1980,7 @@ mod routes {
 
     #[tokio::test]
     async fn test_projects_issues_create() {
-        const CREATED_ISSUE_ID: &str = "8b42657072f6192cba9e08561582576a975656cd";
+        const CREATED_ISSUE_ID: &str = "b2d0999498f98b0d1fa12d859d2d0306380333a0";
 
         let tmp = tempfile::tempdir().unwrap();
         let ctx = contributor(tmp.path());
@@ -2075,20 +2075,24 @@ mod routes {
               "content": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4//8/AAX+Av4N70a4AAAAAElFTkSuQmCC"
             }
           ],
-          "replyTo": CONTRIBUTOR_ISSUE_ID,
+          "replyTo": ISSUE_DISCUSSION_ID,
         }))
         .unwrap();
 
         let response = patch(
             &app,
-            format!("/projects/{CONTRIBUTOR_RID}/issues/{CONTRIBUTOR_ISSUE_ID}"),
+            format!("/projects/{CONTRIBUTOR_RID}/issues/{ISSUE_DISCUSSION_ID}"),
             Some(Body::from(body)),
             Some(SESSION_ID.to_string()),
         )
         .await;
 
         assert_eq!(response.status(), StatusCode::OK);
-        assert_eq!(response.success().await, true);
+
+        // Get ID to redact later in the test
+        let response = response.json().await;
+        let id = &response["id"];
+        assert!(id.is_string());
 
         let body = serde_json::to_vec(&json!({
           "type": "comment.react",
@@ -2099,7 +2103,7 @@ mod routes {
         .unwrap();
         patch(
             &app,
-            format!("/projects/{CONTRIBUTOR_RID}/issues/{CONTRIBUTOR_ISSUE_ID}"),
+            format!("/projects/{CONTRIBUTOR_RID}/issues/{ISSUE_DISCUSSION_ID}"),
             Some(Body::from(body)),
             Some(SESSION_ID.to_string()),
         )
@@ -2120,23 +2124,23 @@ mod routes {
 
         let response = patch(
             &app,
-            format!("/projects/{CONTRIBUTOR_RID}/issues/{CONTRIBUTOR_ISSUE_ID}"),
+            format!("/projects/{CONTRIBUTOR_RID}/issues/{ISSUE_DISCUSSION_ID}"),
             Some(Body::from(body)),
             Some(SESSION_ID.to_string()),
         )
-        .await;
+            .await;
 
         assert_eq!(response.success().await, true);
 
         let body = serde_json::to_vec(&json!({
           "type": "comment.redact",
-          "id": "918fff44966e4305523c077c80ac93b1196f1a7e",
+          "id": id.as_str().unwrap(),
         }))
         .unwrap();
 
         let response = patch(
             &app,
-            format!("/projects/{CONTRIBUTOR_RID}/issues/{CONTRIBUTOR_ISSUE_ID}"),
+            format!("/projects/{CONTRIBUTOR_RID}/issues/{ISSUE_DISCUSSION_ID}"),
             Some(Body::from(body)),
             Some(SESSION_ID.to_string()),
         )
@@ -2146,14 +2150,14 @@ mod routes {
 
         let response = get(
             &app,
-            format!("/projects/{CONTRIBUTOR_RID}/issues/{CONTRIBUTOR_ISSUE_ID}"),
+            format!("/projects/{CONTRIBUTOR_RID}/issues/{ISSUE_DISCUSSION_ID}"),
         )
         .await;
 
         assert_eq!(
             response.json().await,
             json!({
-              "id": CONTRIBUTOR_ISSUE_ID,
+              "id": ISSUE_DISCUSSION_ID,
               "author": {
                 "id": CONTRIBUTOR_DID,
               },
@@ -2215,7 +2219,7 @@ mod routes {
         let _ = get(&app, format!("/projects/{CONTRIBUTOR_RID}/issues")).await;
         let response = patch(
             &app,
-            format!("/projects/{CONTRIBUTOR_RID}/issues/{CONTRIBUTOR_ISSUE_ID}"),
+            format!("/projects/{CONTRIBUTOR_RID}/issues/{ISSUE_DISCUSSION_ID}"),
             Some(Body::from(body)),
             Some(SESSION_ID.to_string()),
         )
@@ -2226,14 +2230,14 @@ mod routes {
 
         let response = get(
             &app,
-            format!("/projects/{CONTRIBUTOR_RID}/issues/{CONTRIBUTOR_ISSUE_ID}"),
+            format!("/projects/{CONTRIBUTOR_RID}/issues/{ISSUE_DISCUSSION_ID}"),
         )
         .await;
 
         assert_eq!(
             response.json().await,
             json!({
-              "id": CONTRIBUTOR_ISSUE_ID,
+              "id": ISSUE_DISCUSSION_ID,
               "author": {
                 "id": CONTRIBUTOR_DID,
               },
@@ -2366,7 +2370,7 @@ mod routes {
 
     #[tokio::test]
     async fn test_projects_create_patches() {
-        const CREATED_PATCH_ID: &str = "beaed2e1d3b9b01ef10326a9a1c951799ba5fb25";
+        const CREATED_PATCH_ID: &str = "e546f1784df29d0ffd424021ebae556cbd950993";
 
         let tmp = tempfile::tempdir().unwrap();
         let ctx = contributor(tmp.path());
@@ -2615,10 +2619,10 @@ mod routes {
               "revisions": [
                 {
                   "id": CONTRIBUTOR_PATCH_ID,
-                  "description": "change `hello world` in README to something else",
                   "author": {
                     "id": CONTRIBUTOR_DID,
                   },
+                  "description": "change `hello world` in README to something else",
                   "base": PARENT,
                   "oid": HEAD,
                   "refs": [
@@ -2629,7 +2633,7 @@ mod routes {
                   "reviews": [],
                 },
                 {
-                  "id": "341ba93c6db54e5891fbd3be4a4f64f4715681fa",
+                  "id": "50d760ccbcfadddd81fe32bd94283cbfd80133fa",
                   "author": {
                     "id": CONTRIBUTOR_DID,
                   },

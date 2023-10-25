@@ -15,10 +15,10 @@ threshold to `2`.
 
 ```
 $ rad id update --title "Add Bob" --description "Add Bob as a delegate" --delegate did:key:z6MkedTZGJGqgQ2py2b8kGecfxdt2yRdHWF6JpaZC47fovFn --threshold 2
-✓ Identity revision d067ffc7bf65d318dd68ca4b8c7adf61a369ea2f created
+✓ Identity revision 07829cdd1993295cd6be18de6219fead428b4a5e created
 ╭───────────────────────────────────────────────────────────────────╮
 │ Title    Add Bob                                                  │
-│ Revision d067ffc7bf65d318dd68ca4b8c7adf61a369ea2f                 │
+│ Revision 07829cdd1993295cd6be18de6219fead428b4a5e                 │
 │ Blob     7109c1c201c223dd4e9fdb10f7330dc6f0310258                 │
 │ Author   did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi │
 │ State    accepted                                                 │
@@ -93,22 +93,22 @@ $ rad inspect --identity
 
 We can also look at the document's COB directly:
 ```
-$ rad cob show --object 2317f74de0494c489a233ca6f29f2b8bff6d4f15 --type xyz.radicle.id --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji
-commit d067ffc7bf65d318dd68ca4b8c7adf61a369ea2f
-parent 2317f74de0494c489a233ca6f29f2b8bff6d4f15
+$ rad cob show --object 0656c217f917c3e06234771e9ecae53aba5e173e --type xyz.radicle.id --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji
+commit 07829cdd1993295cd6be18de6219fead428b4a5e
+parent 0656c217f917c3e06234771e9ecae53aba5e173e
 author z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
 date   Thu, 15 Dec 2022 17:28:04 +0000
 
     {
       "blob": "7109c1c201c223dd4e9fdb10f7330dc6f0310258",
       "description": "Add Bob as a delegate",
-      "parent": "2317f74de0494c489a233ca6f29f2b8bff6d4f15",
+      "parent": "0656c217f917c3e06234771e9ecae53aba5e173e",
       "signature": "z3sne3sdReZ4AtgxQmn7R1pQnz7E9ZEUoRfCJDJ8ytgnBMFW4DJqRHuBz2h1NK4QdGEy3QCpyVoJKfE95tNoivXwz",
       "title": "Add Bob",
       "type": "revision"
     }
 
-commit 2317f74de0494c489a233ca6f29f2b8bff6d4f15
+commit 0656c217f917c3e06234771e9ecae53aba5e173e
 author z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
 date   Thu, 15 Dec 2022 17:28:04 +0000
 
@@ -126,14 +126,14 @@ Note that once a revision is accepted, it can't be edited, redacted or otherwise
 acted upon:
 
 ``` (fail)
-$ rad id redact d067ffc7bf65d318dd68ca4b8c7adf61a369ea2f
+$ rad id redact 07829cdd1993295cd6be18de6219fead428b4a5e
 ✗ Error: [..]
 ```
 ``` (fail)
-$ rad id reject d067ffc7bf65d318dd68ca4b8c7adf61a369ea2f
+$ rad id reject 07829cdd1993295cd6be18de6219fead428b4a5e
 ✗ Error: [..]
 ```
 ``` (fail)
-$ rad id accept d067ffc7bf65d318dd68ca4b8c7adf61a369ea2f
+$ rad id accept 07829cdd1993295cd6be18de6219fead428b4a5e
 ✗ Error: [..]
 ```

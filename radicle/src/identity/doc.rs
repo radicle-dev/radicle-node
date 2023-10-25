@@ -449,7 +449,7 @@ mod test {
     #[test]
     fn test_canonical_example() {
         let tempdir = tempfile::tempdir().unwrap();
-        let storage = Storage::open(tempdir.path().join("storage")).unwrap();
+        let storage = Storage::open(tempdir.path().join("storage"), fixtures::user()).unwrap();
 
         transport::local::register(storage.clone());
 
@@ -480,7 +480,7 @@ mod test {
     #[test]
     fn test_not_found() {
         let tempdir = tempfile::tempdir().unwrap();
-        let storage = Storage::open(tempdir.path().join("storage")).unwrap();
+        let storage = Storage::open(tempdir.path().join("storage"), fixtures::user()).unwrap();
         let remote = arbitrary::gen::<RemoteId>(1);
         let proj = arbitrary::gen::<Id>(1);
         let repo = storage.create(proj).unwrap();
@@ -496,7 +496,7 @@ mod test {
     #[test]
     fn test_canonical_doc() {
         let tempdir = tempfile::tempdir().unwrap();
-        let storage = Storage::open(tempdir.path().join("storage")).unwrap();
+        let storage = Storage::open(tempdir.path().join("storage"), fixtures::user()).unwrap();
         transport::local::register(storage.clone());
 
         let (working, _) = fixtures::repository(tempdir.path().join("working"));

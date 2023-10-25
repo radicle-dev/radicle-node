@@ -34,23 +34,26 @@ pub const HEAD: &str = "e8c676b9e3b42308dc9d218b70faa5408f8e58ca";
 pub const PARENT: &str = "ee8d6a29304623a78ebfa5eeed5af674d0e58f83";
 pub const INITIAL_COMMIT: &str = "f604ce9fd5b7cc77b7609beda45ea8760bee78f7";
 pub const DID: &str = "did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi";
-pub const ISSUE_ID: &str = "4f98396a1ac987af59ec069de9b80d9917b27050";
-pub const ISSUE_DISCUSSION_ID: &str = "ceafc6629ec8dc0a17644fb5a66726aaafc3ed1c";
-pub const ISSUE_COMMENT_ID: &str = "ca48480f3de728ffca0861538310c6a9704a73b7";
+pub const ISSUE_ID: &str = "45d118885b6b06360ee539573f5ceb24be2979f8";
+pub const ISSUE_DISCUSSION_ID: &str = "d11b03464c9bf58b09460713c8e2c74f0725d3bd";
+pub const ISSUE_COMMENT_ID: &str = "e3aa754cb47d2299781fed49cc91c4b41e06c219";
 pub const SESSION_ID: &str = "u9MGAkkfkMOv0uDDB2WeUHBT7HbsO2Dy";
 pub const TIMESTAMP: u64 = 1671125284;
 pub const CONTRIBUTOR_RID: &str = "rad:z4XaCmN3jLSeiMvW15YTDpNbDHFhG";
 pub const CONTRIBUTOR_DID: &str = "did:key:z6Mkk7oqY4pPxhMmGEotDYsFo97vhCj85BLY1H256HrJmjN8";
 pub const CONTRIBUTOR_NID: &str = "z6Mkk7oqY4pPxhMmGEotDYsFo97vhCj85BLY1H256HrJmjN8";
-pub const CONTRIBUTOR_ISSUE_ID: &str = "ceafc6629ec8dc0a17644fb5a66726aaafc3ed1c";
-pub const CONTRIBUTOR_PATCH_ID: &str = "4ff2ec53a2d165da7f54705023e847d4f9230bc3";
+pub const CONTRIBUTOR_PATCH_ID: &str = "0867c6389ee073304da0854a83885f47b1d7f5ed";
 
 /// Create a new profile.
 pub fn profile(home: &Path, seed: [u8; 32]) -> radicle::Profile {
     let home = Home::new(home).unwrap();
-    let storage = Storage::open(home.storage()).unwrap();
     let keystore = Keystore::new(&home.keys());
     let keypair = KeyPair::from_seed(Seed::from(seed));
+    let alias = node::Alias::new("seed");
+    let storage = Storage::open(home.storage(), radicle::git::UserInfo {
+        alias: alias.clone(),
+        key: keypair.pk.into(),
+    }).unwrap();
 
     radicle::storage::git::transport::local::register(storage.clone());
     keystore.store(keypair.clone(), "radicle", None).unwrap();
@@ -61,7 +64,7 @@ pub fn profile(home: &Path, seed: [u8; 32]) -> radicle::Profile {
         keystore,
         public_key: keypair.pk.into(),
         config: profile::Config {
-            node: node::Config::new(node::Alias::new("seed")),
+            node: node::Config::new(alias),
         },
     }
 }

@@ -4,7 +4,7 @@ Let's start by creating a patch.
 $ git checkout -b feature/1 -q
 $ git commit --allow-empty -q -m "First change"
 $ git push rad HEAD:refs/patches
-✓ Patch f6c96cca58521d6dbb6cd4e6b7124342b9a86945 opened
+✓ Patch a1207f6e82700e42cc46c9c38c7786b18cbd2040 opened
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
  * [new reference]   HEAD -> refs/patches
 ```
@@ -26,8 +26,8 @@ update it, we expect it to be updated and merged:
 ``` (stderr) RAD_SOCKET=/dev/null
 $ git checkout feature/1 -q
 $ git push -f
-✓ Patch f6c96cc updated to [...]
-✓ Patch f6c96cca58521d6dbb6cd4e6b7124342b9a86945 merged
+✓ Patch a1207f6 updated to [...]
+✓ Patch a1207f6e82700e42cc46c9c38c7786b18cbd2040 merged
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
- + 20aa5dd...954bcdb feature/1 -> patches/f6c96cca58521d6dbb6cd4e6b7124342b9a86945 (forced update)
+ + 20aa5dd...954bcdb feature/1 -> patches/a1207f6e82700e42cc46c9c38c7786b18cbd2040 (forced update)
 ```

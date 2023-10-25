@@ -249,7 +249,7 @@ fn test_inventory_sync() {
     let mut alice = Peer::config(
         "alice",
         [7, 7, 7, 7],
-        Storage::open(tmp.path().join("alice")).unwrap(),
+        Storage::open(tmp.path().join("alice"), fixtures::user()).unwrap(),
         peer::Config::default(),
     );
     let bob_signer = MockSigner::default();
@@ -631,13 +631,13 @@ fn test_refs_announcement_relay() {
     let mut alice = Peer::config(
         "alice",
         [7, 7, 7, 7],
-        Storage::open(tmp.path().join("alice")).unwrap(),
+        Storage::open(tmp.path().join("alice"), fixtures::user()).unwrap(),
         peer::Config::default(),
     );
     let eve = Peer::config(
         "eve",
         [8, 8, 8, 8],
-        Storage::open(tmp.path().join("eve")).unwrap(),
+        Storage::open(tmp.path().join("eve"), fixtures::user()).unwrap(),
         peer::Config::default(),
     );
 
@@ -703,7 +703,7 @@ fn test_refs_announcement_fetch_trusted_no_inventory() {
     let mut alice = Peer::config(
         "alice",
         [7, 7, 7, 7],
-        Storage::open(tmp.path().join("alice")).unwrap(),
+        Storage::open(tmp.path().join("alice"), fixtures::user()).unwrap(),
         peer::Config::default(),
     );
     let bob = {
@@ -1202,7 +1202,7 @@ fn test_queued_fetch() {
 #[test]
 fn test_refs_synced_event() {
     let temp = tempfile::tempdir().unwrap();
-    let storage = Storage::open(temp.path()).unwrap();
+    let storage = Storage::open(temp.path(), fixtures::user()).unwrap();
     let mut alice = Peer::with_storage("alice", [8, 8, 8, 8], storage);
     let bob = Peer::new("eve", [9, 9, 9, 9]);
     let acme = alice.project("acme", "");
@@ -1246,7 +1246,11 @@ fn test_refs_synced_event() {
 fn test_push_and_pull() {
     let tempdir = tempfile::tempdir().unwrap();
 
-    let storage_alice = Storage::open(tempdir.path().join("alice").join("storage")).unwrap();
+    let storage_alice = Storage::open(
+        tempdir.path().join("alice").join("storage"),
+        fixtures::user(),
+    )
+    .unwrap();
     let (repo, _) = fixtures::repository(tempdir.path().join("working"));
     let mut alice = Peer::config(
         "alice",
@@ -1255,10 +1259,12 @@ fn test_push_and_pull() {
         peer::Config::default(),
     );
 
-    let storage_bob = Storage::open(tempdir.path().join("bob").join("storage")).unwrap();
+    let storage_bob =
+        Storage::open(tempdir.path().join("bob").join("storage"), fixtures::user()).unwrap();
     let mut bob = Peer::config("bob", [8, 8, 8, 8], storage_bob, peer::Config::default());
 
-    let storage_eve = Storage::open(tempdir.path().join("eve").join("storage")).unwrap();
+    let storage_eve =
+        Storage::open(tempdir.path().join("eve").join("storage"), fixtures::user()).unwrap();
     let mut eve = Peer::config("eve", [9, 9, 9, 9], storage_eve, peer::Config::default());
 
     remote::mock::register(&alice.node_id(), alice.storage().path());
