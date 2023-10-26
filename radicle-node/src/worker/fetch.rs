@@ -6,7 +6,7 @@ use radicle::crypto::PublicKey;
 use radicle::git::UserInfo;
 use radicle::prelude::Id;
 use radicle::storage::git::Repository;
-use radicle::storage::{ReadStorage as _, RefUpdate, WriteRepository as _, WriteStorage as _};
+use radicle::storage::{ReadStorage as _, RefUpdate, WriteRepository as _};
 use radicle::Storage;
 use radicle_fetch::{BlockList, FetchLimit, Tracked};
 
@@ -23,6 +23,7 @@ pub struct FetchResult {
 pub enum Handle {
     Clone {
         handle: radicle_fetch::Handle<ChannelsFlush>,
+        tmp: tempfile::TempDir,
     },
     Pull {
         handle: radicle_fetch::Handle<ChannelsFlush>,
@@ -45,36 +46,30 @@ impl Handle {
             let handle = radicle_fetch::Handle::new(local, repo, tracked, blocked, channels)?;
             Ok(Handle::Pull { handle })
         } else {
-            let repo = storage.create(rid)?;
-            repo.set_user(&info)?;
+            let tmp = tempfile::tempdir()?;
+            let repo = Repository::create(tmp.path(), rid, &info)?;
             let handle = radicle_fetch::Handle::new(local, repo, tracked, blocked, channels)?;
-            Ok(Handle::Clone { handle })
+            Ok(Handle::Clone { handle, tmp })
         }
     }
 
     pub fn fetch(
-        mut self,
+        self,
         rid: Id,
         storage: &Storage,
         limit: FetchLimit,
         remote: PublicKey,
     ) -> Result<FetchResult, error::Fetch> {
-        let result = match &mut self {
-            Self::Clone { handle } => {
+        let result = match self {
+            Self::Clone { mut handle, tmp } => {
                 log::debug!(target: "worker", "{} cloning from {remote}", handle.local());
-                match radicle_fetch::clone(handle, limit, remote) {
-                    Ok(result) => result,
-                    Err(e) => {
-                        // N.b. the clone failed so we remove the
-                        // repository from the storage
-                        storage.remove(rid)?;
-                        return Err(e.into());
-                    }
-                }
+                let result = radicle_fetch::clone(&mut handle, limit, remote)?;
+                mv(tmp, storage, &rid)?;
+                result
             }
-            Self::Pull { handle } => {
+            Self::Pull { mut handle } => {
                 log::debug!(target: "worker", "{} pulling from {remote}", handle.local());
-                radicle_fetch::pull(handle, limit, remote)?
+                radicle_fetch::pull(&mut handle, limit, remote)?
             }
         };
 
@@ -96,8 +91,11 @@ impl Handle {
             radicle_fetch::FetchResult::Success {
                 applied, remotes, ..
             } => {
-                self.repository_mut().set_head()?;
-                self.repository_mut().set_identity_head()?;
+                // N.b. We do not go through handle for this since the cloning handle
+                // points to a repository that is temporary and gets moved by [`mv`].
+                let repo = storage.repository(rid)?;
+                repo.set_identity_head()?;
+                repo.set_head()?;
 
                 Ok(FetchResult {
                     updated: applied.updated,
@@ -106,11 +104,33 @@ impl Handle {
             }
         }
     }
+}
 
-    fn repository_mut(&mut self) -> &mut Repository {
-        match self {
-            Self::Clone { handle } => handle.repository_mut(),
-            Self::Pull { handle } => handle.repository_mut(),
-        }
+/// In the case of cloning, we have performed the fetch into a
+/// temporary directory -- ensuring that no concurrent operations
+/// see an empty repository.
+///
+/// At the end of the clone, we perform a rename of the temporary
+/// directory to the storage repository.
+///
+/// # Errors
+///   - Will fail if `storage` contains `rid` already.
+fn mv(tmp: tempfile::TempDir, storage: &Storage, rid: &Id) -> Result<(), error::Fetch> {
+    use std::io::{Error, ErrorKind};
+
+    let from = tmp.path();
+    let to = storage.path_of(rid);
+
+    if !to.exists() {
+        std::fs::rename(from, to)?;
+    } else {
+        log::warn!(target: "worker", "Refusing to move cloned repository {rid} already exists");
+        return Err(Error::new(
+            ErrorKind::AlreadyExists,
+            format!("repository already exists {:?}", to),
+        )
+        .into());
     }
+
+    Ok(())
 }
