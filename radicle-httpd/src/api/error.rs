@@ -92,24 +92,30 @@ impl IntoResponse for Error {
         let message = self.to_string();
         let (status, msg) = match self {
             Error::NotFound => (StatusCode::NOT_FOUND, None),
-            Error::CobStore(radicle::cob::store::Error::NotFound(_, _)) => {
-                (StatusCode::NOT_FOUND, None)
+            Error::CobStore(e @ radicle::cob::store::Error::NotFound(_, _)) => {
+                (StatusCode::NOT_FOUND, Some(e.to_string()))
             }
             Error::Auth(msg) => (StatusCode::BAD_REQUEST, Some(msg.to_string())),
             Error::Crypto(msg) => (StatusCode::BAD_REQUEST, Some(msg.to_string())),
             Error::Surf(radicle_surf::Error::Git(e)) if radicle::git::is_not_found_err(&e) => {
-                (StatusCode::NOT_FOUND, None)
+                (StatusCode::NOT_FOUND, Some(e.message().to_owned()))
             }
             Error::Surf(radicle_surf::Error::Directory(
-                radicle_surf::fs::error::Directory::PathNotFound(_),
-            )) => (StatusCode::NOT_FOUND, None),
-            Error::Git2(e) if radicle::git::is_not_found_err(&e) => (StatusCode::NOT_FOUND, None),
+                e @ radicle_surf::fs::error::Directory::PathNotFound(_),
+            )) => (StatusCode::NOT_FOUND, Some(e.to_string())),
+            Error::Git2(e) if radicle::git::is_not_found_err(&e) => {
+                (StatusCode::NOT_FOUND, Some(e.message().to_owned()))
+            }
             Error::Git2(e) => (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Some(e.message().to_owned()),
             ),
-            Error::Storage(err) if err.is_not_found() => (StatusCode::NOT_FOUND, None),
-            Error::StorageRef(err) if err.is_not_found() => (StatusCode::NOT_FOUND, None),
+            Error::Storage(err) if err.is_not_found() => {
+                (StatusCode::NOT_FOUND, Some(err.to_string()))
+            }
+            Error::StorageRef(err) if err.is_not_found() => {
+                (StatusCode::NOT_FOUND, Some(err.to_string()))
+            }
             Error::BadRequest(msg) => (StatusCode::BAD_REQUEST, Some(msg)),
             other => {
                 tracing::error!("Error: {message}");
