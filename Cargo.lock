@@ -1968,6 +1968,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "radicle-keri"
+version = "0.1.0"
+dependencies = [
+ "git2",
+]
+
+[[package]]
 name = "radicle-node"
 version = "0.2.0"
 dependencies = [
