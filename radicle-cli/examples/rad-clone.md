@@ -23,7 +23,7 @@ repository:
 
 ```
 $ cd heartwood
-$ ls
+$ ls -I
 README
 $ cat README
 Hello World!
