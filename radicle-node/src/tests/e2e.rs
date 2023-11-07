@@ -855,7 +855,7 @@ fn test_non_fastforward_sigrefs() {
     // Eve has old refs.
     assert_matches!(
         alice.handle.fetch(rid, eve.id, DEFAULT_TIMEOUT).unwrap(),
-        FetchResult::Failed { .. }
+        FetchResult::Success { updated, .. } if updated.is_empty()
     );
 }
 
@@ -948,4 +948,94 @@ fn test_outdated_sigrefs() {
 
     assert_ne!(eves_refs, old_refs);
     assert_eq!(eves_refs_expected, eves_refs);
+}
+
+#[test]
+fn test_outdated_delegate_sigrefs() {
+    logger::init(log::Level::Debug);
+
+    let tmp = tempfile::tempdir().unwrap();
+
+    let mut alice = Node::init(tmp.path(), Config::test(Alias::new("alice")));
+    let bob = Node::init(tmp.path(), Config::test(Alias::new("bob")));
+    let eve = Node::init(tmp.path(), Config::test(Alias::new("eve")));
+
+    let rid = alice.project("acme", "");
+
+    let mut alice = alice.spawn();
+    let mut bob = bob.spawn();
+    let mut eve = eve.spawn();
+
+    bob.handle.track_repo(rid, Scope::All).unwrap();
+    eve.handle.track_repo(rid, Scope::All).unwrap();
+    alice.connect(&bob);
+    bob.connect(&eve);
+    eve.connect(&alice);
+    converge([&alice, &bob, &eve]);
+
+    bob.handle.fetch(rid, alice.id, DEFAULT_TIMEOUT).unwrap();
+    assert!(bob.storage.contains(&rid).unwrap());
+    rad::fork(rid, &bob.signer, &bob.storage).unwrap();
+
+    eve.handle.fetch(rid, alice.id, DEFAULT_TIMEOUT).unwrap();
+    assert!(eve.storage.contains(&rid).unwrap());
+    rad::fork(rid, &eve.signer, &eve.storage).unwrap();
+
+    alice
+        .handle
+        .track_node(eve.id, Some(Alias::new("eve")))
+        .unwrap();
+    alice.handle.fetch(rid, eve.id, DEFAULT_TIMEOUT).unwrap();
+    let repo = alice.storage.repository(rid).unwrap();
+    assert!(repo.remote(&eve.id).is_ok());
+
+    log::debug!(target: "test", "Bob fetches from Eve..");
+    assert_matches!(
+        bob.handle.fetch(rid, eve.id, DEFAULT_TIMEOUT).unwrap(),
+        FetchResult::Success { .. }
+    );
+    let repo = bob.storage.repository(rid).unwrap();
+    let alice_remote = repo.remote(&alice.id).unwrap();
+    let old_refs = alice_remote.refs;
+
+    // At this stage, Alice and Bob have Eve's fork and Eve does not
+    // have Bob's fork
+
+    alice.issue(
+        rid,
+        "Outdated Sigrefs",
+        "Outdated sigrefs are harshing my vibes",
+    );
+    let repo = alice.storage.repository(rid).unwrap();
+    let alice_refs = repo.remote(&alice.id).unwrap().refs;
+
+    // Get the current state of eve's refs in alice's storage
+    log::debug!(target: "test", "Alice fetches from Eve..");
+    assert_matches!(
+        eve.handle.fetch(rid, alice.id, DEFAULT_TIMEOUT).unwrap(),
+        FetchResult::Success { .. }
+    );
+    let repo = eve.storage.repository(rid).unwrap();
+    let alice_remote = repo.remote(&alice.id).unwrap();
+    let alice_refs_expected = alice_remote.refs;
+    assert_ne!(alice_refs_expected, old_refs);
+    assert_eq!(alice_refs_expected, alice_refs);
+
+    log::debug!(target: "test", "Alice fetches from Bob..");
+
+    eve.handle
+        .track_node(bob.id, Some(Alias::new("bob")))
+        .unwrap();
+    assert_matches!(
+        eve.handle.fetch(rid, bob.id, DEFAULT_TIMEOUT).unwrap(),
+        FetchResult::Success { .. }
+    );
+
+    // Ensure that Eve's refs have not changed after fetching the old refs from Bob.
+    let repo = eve.storage.repository(rid).unwrap();
+    let alice_remote = repo.remote(&alice.id).unwrap();
+    let alice_refs = alice_remote.refs;
+
+    assert_ne!(alice_refs, old_refs);
+    assert_eq!(alice_refs_expected, alice_refs);
 }

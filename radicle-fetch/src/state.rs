@@ -29,6 +29,8 @@ pub const DEFAULT_FETCH_DATA_REFS_LIMIT: u64 = 1024 * 1024 * 1024 * 5;
 pub mod error {
     use std::io;
 
+    use radicle::git::Oid;
+    use radicle::prelude::PublicKey;
     use thiserror::Error;
 
     use crate::{git, git::repository, handle, sigrefs, stage};
@@ -48,7 +50,15 @@ pub mod error {
     #[derive(Debug, Error)]
     pub enum Protocol {
         #[error(transparent)]
+        Ancestry(#[from] repository::error::Ancestry),
+        #[error(transparent)]
         Canonical(#[from] Canonical),
+        #[error("delegate '{remote}' has diverged 'rad/sigrefs': {current} -> {received}")]
+        Diverged {
+            remote: PublicKey,
+            current: Oid,
+            received: Oid,
+        },
         #[error(transparent)]
         Io(#[from] io::Error),
         #[error("canonical 'refs/rad/id' is missing")]
@@ -371,6 +381,18 @@ impl FetchState {
                     remote,
                     data: Some(sigrefs),
                 } => {
+                    if let Some(SignedRefsAt { at, .. }) = SignedRefsAt::load(remote, &handle.repo)?
+                    {
+                        match repository::is_in_ancestry_path(&handle.repo, at, sigrefs.at)? {
+                            repository::Ancestry::Ahead | repository::Ancestry::Equal => { /* do nothing */
+                            }
+                            repository::Ancestry::Behind | repository::Ancestry::Diverged => {
+                                self.prune(&remote);
+                                continue;
+                            }
+                        }
+                    }
+
                     let cache = self.as_cached(handle);
                     if let Some(warns) = sigrefs::validate(&cache, sigrefs)?.as_mut() {
                         log::debug!(
@@ -385,6 +407,25 @@ impl FetchState {
                     remote,
                     data: Some(sigrefs),
                 } => {
+                    if let Some(SignedRefsAt { at, .. }) = SignedRefsAt::load(remote, &handle.repo)?
+                    {
+                        match repository::is_in_ancestry_path(&handle.repo, at, sigrefs.at)? {
+                            repository::Ancestry::Ahead | repository::Ancestry::Equal => { /* do nothing */
+                            }
+                            repository::Ancestry::Behind => {
+                                self.prune(&remote);
+                                continue;
+                            }
+                            repository::Ancestry::Diverged => {
+                                return Err(error::Protocol::Diverged {
+                                    remote,
+                                    current: at,
+                                    received: sigrefs.at,
+                                })
+                            }
+                        }
+                    }
+
                     let cache = self.as_cached(handle);
                     if let Some(fails) = sigrefs::validate(&cache, sigrefs)?.as_mut() {
                         log::warn!(target: "fetch", "Pruning delegate {remote} tips, due to validation failures");

@@ -10,6 +10,14 @@ use radicle::storage::ReadRepository;
 
 use super::refs::{Applied, Policy, RefUpdate, Update};
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Ancestry {
+    Equal,
+    Ahead,
+    Behind,
+    Diverged,
+}
+
 pub fn contains(repo: &Repository, oid: Oid) -> Result<bool, error::Contains> {
     repo.backend
         .odb()
@@ -17,17 +25,32 @@ pub fn contains(repo: &Repository, oid: Oid) -> Result<bool, error::Contains> {
         .map_err(error::Contains)
 }
 
-pub fn is_in_ancestry_path(repo: &Repository, old: Oid, new: Oid) -> Result<bool, error::Ancestry> {
+pub fn is_in_ancestry_path(
+    repo: &Repository,
+    old: Oid,
+    new: Oid,
+) -> Result<Ancestry, error::Ancestry> {
     if !contains(repo, old)? || !contains(repo, new)? {
-        return Ok(false);
+        return Ok(Ancestry::Diverged);
     }
 
     if old == new {
-        return Ok(true);
+        return Ok(Ancestry::Equal);
     }
 
-    repo.is_ancestor_of(old, new)
-        .map_err(|err| error::Ancestry::Check { old, new, err })
+    if repo
+        .is_ancestor_of(old, new)
+        .map_err(|err| error::Ancestry::Check { old, new, err })?
+    {
+        Ok(Ancestry::Ahead)
+    } else if repo
+        .is_ancestor_of(new, old)
+        .map_err(|err| error::Ancestry::Check { old, new, err })?
+    {
+        Ok(Ancestry::Behind)
+    } else {
+        Ok(Ancestry::Diverged)
+    }
 }
 
 pub fn refname_to_id<'a, N>(repo: &Repository, refname: N) -> Result<Option<Oid>, error::Resolve>
@@ -81,45 +104,55 @@ fn direct<'a>(
     let tip = refname_to_id(repo, name.clone())?;
     match tip {
         Some(prev) => {
-            let is_ff = is_in_ancestry_path(repo, prev, target)?;
-            if !is_ff {
-                match no_ff {
-                    Policy::Abort => {
-                        return Err(error::Update::NonFF {
+            let ancestry = is_in_ancestry_path(repo, prev, target)?;
+
+            match ancestry {
+                Ancestry::Equal => Ok(Right(RefUpdate::Skipped {
+                    name: name.to_ref_string(),
+                    oid: target,
+                })),
+                Ancestry::Ahead => {
+                    // N.b. the update is a fast-forward so we can safely
+                    // pass `force: true`.
+                    repo.backend
+                        .reference(name.as_ref(), target.into(), true, "radicle: update")
+                        .map_err(|err| error::Update::Create {
                             name: name.to_owned(),
-                            new: target,
-                            cur: prev,
-                        })
-                    }
-                    Policy::Reject => Ok(Left(Update::Direct {
-                        name,
-                        target,
-                        no_ff,
-                    })),
-                    Policy::Allow => {
-                        // N.b. the update is a non-fast-forward but
-                        // we allow it, so we pass `force: true`.
-                        repo.backend
-                            .reference(name.as_ref(), target.into(), true, "radicle: update")
-                            .map_err(|err| error::Update::Create {
-                                name: name.to_owned(),
-                                target,
-                                err,
-                            })?;
-                        Ok(Right(RefUpdate::from(name.to_ref_string(), prev, target)))
-                    }
+                            target,
+                            err,
+                        })?;
+                    Ok(Right(RefUpdate::from(name.to_ref_string(), prev, target)))
                 }
-            } else {
-                // N.b. the update is a fast-forward so we can safely
-                // pass `force: true`.
-                repo.backend
-                    .reference(name.as_ref(), target.into(), true, "radicle: update")
-                    .map_err(|err| error::Update::Create {
+                Ancestry::Behind | Ancestry::Diverged if matches!(no_ff, Policy::Allow) => {
+                    // N.b. the update is a non-fast-forward but
+                    // we allow it, so we pass `force: true`.
+                    repo.backend
+                        .reference(name.as_ref(), target.into(), true, "radicle: update")
+                        .map_err(|err| error::Update::Create {
+                            name: name.to_owned(),
+                            target,
+                            err,
+                        })?;
+                    Ok(Right(RefUpdate::from(name.to_ref_string(), prev, target)))
+                }
+                // N.b. if the target is behind, we simply reject the update
+                Ancestry::Behind => Ok(Left(Update::Direct {
+                    name,
+                    target,
+                    no_ff,
+                })),
+                Ancestry::Diverged if matches!(no_ff, Policy::Reject) => Ok(Left(Update::Direct {
+                    name,
+                    target,
+                    no_ff,
+                })),
+                Ancestry::Diverged => {
+                    return Err(error::Update::NonFF {
                         name: name.to_owned(),
-                        target,
-                        err,
-                    })?;
-                Ok(Right(RefUpdate::from(name.to_ref_string(), prev, target)))
+                        new: target,
+                        cur: prev,
+                    })
+                }
             }
         }
         None => {
