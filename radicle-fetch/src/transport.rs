@@ -137,7 +137,7 @@ where
                 },
                 handshake,
                 Connection::new(read, write, FetchConnection::AllowReuse, self.repo.clone()),
-                &mut progress::Discard,
+                progress::Discard,
             )
             .map_err(io_other)?
         };

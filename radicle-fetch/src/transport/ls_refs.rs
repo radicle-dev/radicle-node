@@ -153,7 +153,7 @@ where
             features.push(("agent", Some(Cow::Owned(agent))));
 
             progress.step();
-            progress.set_name("list refs");
+            progress.set_name("list refs".to_string());
             let mut remote_refs = conn.invoke(
                 ls.as_str(),
                 features.clone().into_iter(),

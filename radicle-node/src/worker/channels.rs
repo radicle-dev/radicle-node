@@ -191,7 +191,8 @@ impl radicle_fetch::transport::SignalEof for ChannelFlushWriter<Vec<u8>> {
 
     fn eof(&mut self) -> io::Result<()> {
         self.writer.send(ChannelEvent::Eof)?;
-        self.flush()
+        Ok(())
+        // self.flush()
     }
 }
 
@@ -220,7 +221,8 @@ impl Write for ChannelFlushWriter<Vec<u8>> {
                 Err(e) => return Err(e),
             }
         }
-        self.flush()
+        Ok(())
+        // self.flush()
     }
 }
 
