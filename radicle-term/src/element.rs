@@ -201,7 +201,7 @@ impl Line {
 
     /// Add multiple items to this line.
     pub fn extend(mut self, items: impl IntoIterator<Item = Label>) -> Self {
-        self.items.extend(items.into_iter());
+        self.items.extend(items);
         self
     }
 
