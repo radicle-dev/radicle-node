@@ -1,0 +1,4 @@
+# We want the tests to stop running if they are running
+# longer than 1min
+[profile.default]
+slow-timeout = { period = "30s", terminate-after = 2, grace-period = "10s" }

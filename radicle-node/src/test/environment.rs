@@ -220,7 +220,7 @@ impl<G: Signer + cyphernet::Ecdh> NodeHandle<G> {
         &'a self,
         remotes: impl IntoIterator<Item = &'a NodeHandle<G>>,
     ) -> BTreeSet<(Id, NodeId)> {
-        converge(iter::once(self).chain(remotes.into_iter()))
+        converge(iter::once(self).chain(remotes))
     }
 
     /// Wait until this node's routing table contains the given routes.
