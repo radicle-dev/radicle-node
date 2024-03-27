@@ -38,6 +38,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .filter_map(|s| s.strip_prefix('v'))
         .collect::<Vec<_>>();
 
+    git(&["status"]);
+    git(&["rev-parse", "HEAD"]);
+    git(&["tag", "--list"]);
+    git(&["show", "v0.9.0"]);
+    git(&["show", "-s", "v0.9.0"]);
+    git(&["log", "v0.9.0..HEAD", "--oneline"]);
+    git(&["describe"]);
+    git(&["describe", "HEAD"]);
+    git(&["describe", "master"]);
+    git(&["describe", "--abbrev=0"]);
+    git(&["describe", "--abbrev=0", "--candidates=1"]);
+    git(&["describe", "--abbrev=0", "--candidates=1", "--match=v*"]);
+    git(&["ls-remote", "origin"]);
+
     if tags.len() > 1 {
         return Err("More than one version tag found for commit {hash}: {tags:?}".into());
     }
@@ -90,5 +104,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("cargo::rustc-env=GIT_COMMIT_TIME={commit_time}");
     println!("cargo::rustc-env=GIT_HEAD={hash}");
 
-    Ok(())
+    return Err("aborted".into());
+
+    // Ok(())
+}
+
+fn git(args: &[&str]) {
+    let out = Command::new("git").args(args).output().unwrap();
+
+    println!("cargo::warning=command: git {:?}", args);
+
+    for line in String::from_utf8_lossy(&out.stdout).lines() {
+        println!("cargo::warning=stdout: {}", line);
+    }
+    for line in String::from_utf8_lossy(&out.stderr).lines() {
+        println!("cargo::warning=stderr: {}", line);
+    }
+    println!("cargo::warning=@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
 }
