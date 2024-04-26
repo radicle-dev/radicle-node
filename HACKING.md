@@ -22,7 +22,7 @@ The repository is structured in *crates*, as follows:
 * `radicle-cli-test`: The Radicle CLI testing framework, for writing documentation tests.
 * `radicle-cob`: Radicle Collaborative Objects (COBs). Provides a way of creating and traversing edit histories.
 * `radicle-crdt`: Conflict-free replicated datatypes (CRDTs) used for things like discussions and patches.
-* `radicle-crypto`: A wrapper around Ed25519 cryptographic signing primitives .
+* `radicle-crypto`: A wrapper around Ed25519 cryptographic signing primitives.
 * `radicle-dag`: A simple directed acyclic graph implementation used by `radicle-cob`.
 * `radicle-httpd`: The radicle HTTP daemon that serves API clients and Git fetch requests.
 * `radicle-node`: The radicle peer-to-peer daemon that enables users to connect to the network and share code.

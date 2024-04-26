@@ -51,7 +51,7 @@ The following code guidelines will help make code review smoother.
 
 Use `unwrap` only in either of three circumstances:
 
-1. Based on manual static anaylsis, you've concluded that it's impossible for
+1. Based on manual static analysis, you've concluded that it's impossible for
 the code to panic; so unwrapping is *safe*. An example would be:
 
         let list = vec![a, b, c];

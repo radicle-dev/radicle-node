@@ -4,7 +4,7 @@
 
 Heartwood is the third iteration of the Radicle Protocol, a powerful
 peer-to-peer code collaboration and publishing stack. The repository contains a
-full implemention of Heartwood, complete with a user-friendly command-line
+full implementation of Heartwood, complete with a user-friendly command-line
 interface (`rad`) and network daemon (`radicle-node`).
 
 Radicle was designed to be a secure, decentralized and powerful alternative to
